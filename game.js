@@ -1241,7 +1241,15 @@ function clampX(x) {
 // ── HUD ────────────────────────────────────────────────────
 function updateHUD() {
   document.getElementById('crowd-count').textContent = crowdSize;
-  document.getElementById('score-display').textContent = `Level: ${level}`;
+  document.getElementById('level-label').textContent = `Level ${level}`;
+
+  // Progress: bølger ferdig / totalt (bølger + boss)
+  const lp = levelParams;
+  const total = (lp ? lp.wavesBeforeBoss : 2) + 1; // +1 for boss
+  const done  = bossSpawnedThisLevel ? total : wavesSpawnedInLevel;
+  const pct   = Math.round(Math.min(done / total, 1) * 100);
+  document.getElementById('progress-bar-fill').style.width = pct + '%';
+  document.getElementById('progress-pct').textContent = pct + '%';
 }
 
 // ── Start / restart ────────────────────────────────────────

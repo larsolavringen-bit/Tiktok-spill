@@ -43,13 +43,43 @@ body {
   letter-spacing: -2px;
 }
 
-#score-display {
-  font-size: 18px;
+#level-label {
+  font-size: 15px;
   font-weight: bold;
-  color: rgba(255,255,255,0.85);
-  background: rgba(0,0,0,0.3);
-  padding: 4px 14px;
+  color: rgba(255,255,255,0.75);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+#progress-bar-wrap {
+  position: relative;
+  width: 200px;
+  height: 18px;
+  background: rgba(0,0,0,0.35);
   border-radius: 20px;
+  overflow: hidden;
+  border: 1.5px solid rgba(255,255,255,0.18);
+}
+
+#progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #43a047, #69f0ae);
+  border-radius: 20px;
+  transition: width 0.3s ease;
+}
+
+#progress-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  pointer-events: none;
 }
 
 /* Overlays */
