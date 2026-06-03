@@ -82,7 +82,7 @@ function getLevelParams(lvl) {
   const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
   return {
     worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
-    wavesBeforeBoss: Math.max(1, 1 + Math.floor(n * 0.5)),
+    wavesBeforeBoss: Math.max(3, 3 + Math.floor(n * 0.8)),
     enemyHP:         Math.round((30 + n * 15) * (1 + rnd())),
     enemyCount:      Math.min(8 + Math.floor(n * 2.0), CFG.maxEnemyCount),
     bossHP:          Math.round((120 + n * 60) * (1 + rnd())),
@@ -579,6 +579,7 @@ for (let z = -8; z > -300; z -= PROP_INTERVAL) spawnPropGroup(z);
 
 // ── Crowd ──────────────────────────────────────────────────
 const crowdGroup = new THREE.Group();
+crowdGroup.position.z = 8; // crowd plassert lengre bak mot kamera
 scene.add(crowdGroup);
 const crowdFigs = [];
 
@@ -975,18 +976,73 @@ function createBoss() {
   return root;
 }
 
-// ── Spawn vanlige fiender (tar HP og antall direkte) ────────
-function spawnEnemy(atZ, hp, count) {
-  const g = new THREE.Group();
-  for (let i = 0; i < count; i++) {
-    const fig   = createSoldier(0xc62828);
-    const angle = i * 2.39996;
-    const r     = i === 0 ? 0 : Math.sqrt(i / count) * CFG.enemySpread;
-    fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
-    g.add(fig);
+// ── Spawn vanlige fiender – varierte formasjoner ────────────
+// formation: 'circle'|'line'|'spread'|'flank'|'wedge'|'swarm'
+function spawnEnemy(atZ, hp, count, formation) {
+  // Velg tilfeldig formasjon hvis ikke angitt
+  const formations = ['circle','line','spread','flank','wedge','swarm'];
+  const form = formation || formations[Math.floor(Math.random()*formations.length)];
+
+  // Beregn posisjoner basert på formasjon
+  function getPositions(n, f) {
+    const pos = [];
+    switch(f) {
+      case 'line':  // Rett linje på tvers av veien
+        for (let i=0;i<n;i++) pos.push([(i-(n-1)/2)*2.2, 0, 0]);
+        break;
+      case 'spread': // Bred vifte
+        for (let i=0;i<n;i++) {
+          const t = n>1?(i/(n-1)-0.5)*2:0;
+          pos.push([t*CFG.roadWidth*0.45, 0, -Math.abs(t)*2]);
+        }
+        break;
+      case 'flank': // To grupper på hver side
+        for (let i=0;i<n;i++) {
+          const side = i%2===0?-1:1;
+          const row  = Math.floor(i/2);
+          pos.push([side*(2.5+row*0.6), 0, -row*1.2]);
+        }
+        break;
+      case 'wedge': // V-formasjon peker mot spilleren
+        for (let i=0;i<n;i++) {
+          const row = Math.floor(i/2);
+          const side = i%2===0?-1:1;
+          pos.push([side*row*1.8, 0, row*2.0]);
+        }
+        break;
+      case 'swarm': // Mange, random spread, lav HP
+        for (let i=0;i<n;i++)
+          pos.push([(Math.random()-0.5)*CFG.roadWidth*0.7, 0, (Math.random()-0.5)*4]);
+        break;
+      default: // circle
+        for (let i=0;i<n;i++) {
+          const a = i*2.39996;
+          const r = i===0?0:Math.sqrt(i/n)*CFG.enemySpread;
+          pos.push([Math.cos(a)*r, 0, Math.sin(a)*r*0.5]);
+        }
+    }
+    return pos;
   }
 
-  const tex = hpTex(hp, hp);
+  // Juster HP og antall etter formasjon
+  let adjustedHP = hp, adjustedCount = count;
+  if (form==='swarm')  { adjustedHP = Math.max(5, Math.round(hp*0.4)); adjustedCount = Math.round(count*1.8); }
+  if (form==='flank')  { adjustedCount = Math.max(4, Math.round(count*0.8)); }
+  if (form==='wedge')  { adjustedHP = Math.round(hp*1.3); adjustedCount = Math.max(3, Math.round(count*0.7)); }
+
+  // Tilfeldig X offset for gruppa (-3, 0 eller +3)
+  const groupOffsets = [-3, -1.5, 0, 1.5, 3];
+  const groupX = groupOffsets[Math.floor(Math.random()*groupOffsets.length)];
+
+  const g = new THREE.Group();
+  const positions = getPositions(adjustedCount, form);
+  positions.forEach(([px,py,pz]) => {
+    const fig = createSoldier(0xc62828);
+    fig.position.set(px, py, pz);
+    g.add(fig);
+  });
+
+  const tex = hpTex(adjustedHP, adjustedHP);
   const lbl = new THREE.Mesh(
     new THREE.PlaneGeometry(4.8, 0.82),
     new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
@@ -994,9 +1050,16 @@ function spawnEnemy(atZ, hp, count) {
   lbl.position.y = 3.0;
   g.add(lbl);
 
-  g.position.set(0, 0, atZ);
+  g.position.set(groupX, 0, atZ);
   scene.add(g);
-  enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss:false, alive:true });
+  enemies.push({ group:g, hp:adjustedHP, maxHp:adjustedHP, labelMesh:lbl, isBoss:false, alive:true });
+}
+
+// Spawn to separate grupper på samme bølge (flankering)
+function spawnDoubleWave(atZ, hp, count) {
+  const half = Math.ceil(count/2);
+  spawnEnemy(atZ,        Math.round(hp*0.8), half, 'spread');
+  spawnEnemy(atZ - 8,   Math.round(hp*0.8), count-half, 'line');
 }
 
 // ── Spawn boss for gjeldende level ─────────────────────────
@@ -1223,7 +1286,7 @@ function updateBullets(dt) {
       }
     }
 
-    if (hit || b.life <= 0 || b.mesh.position.z < -55) {
+    if (hit || b.life <= 0 || b.mesh.position.z < -100) {
       b.mesh.visible = false;
       activePBullets.splice(i, 1);
     }
@@ -1298,7 +1361,12 @@ function checkSpawns(dz) {
       spawnBoss(-90, lp.bossHP);
     } else if (!bossSpawnedThisLevel) {
       wavesSpawnedInLevel++;
-      spawnEnemy(-90, lp.enemyHP, lp.enemyCount);
+      // Varier bølge-type: dobbel-bølge hvert 3. wave, ellers tilfeldig formasjon
+      if (wavesSpawnedInLevel % 3 === 0) {
+        spawnDoubleWave(-90, lp.enemyHP, lp.enemyCount);
+      } else {
+        spawnEnemy(-90, lp.enemyHP, lp.enemyCount);
+      }
     }
   }
 }
