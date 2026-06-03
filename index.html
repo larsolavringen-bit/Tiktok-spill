@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Crowd Runner</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="crowd-count">10</div>
+    <div id="score-display">Bølge: 0</div>
+  </div>
+
+  <!-- Start screen -->
+  <div id="start-screen" class="overlay">
+    <h1>CROWD<br/>RUNNER</h1>
+    <p class="subtitle">Vokse mengden, beseiR fiender!</p>
+    <button id="start-btn">TAP FOR Å STARTE</button>
+  </div>
+
+  <!-- Game Over screen -->
+  <div id="gameover-screen" class="overlay hidden">
+    <h1>GAME OVER</h1>
+    <p id="final-score">Du klarte bølge 0</p>
+    <p id="high-score-display">Rekord: 0</p>
+    <button id="restart-btn">SPILL IGJEN</button>
+  </div>
+
+  <!-- Victory screen (boss defeated) -->
+  <div id="victory-screen" class="overlay hidden">
+    <h1>🏆 SEIER!</h1>
+    <p id="victory-score"></p>
+    <button id="victory-restart-btn">SPILL IGJEN</button>
+  </div>
+
+  <!-- Three.js canvas -->
+  <canvas id="game-canvas"></canvas>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
