@@ -51,6 +51,24 @@ let lastEnemyTravel = 0;
 let shootTimer      = 0;
 let enemyShootTimer = 0;
 
+// ── Våpen-tiers ────────────────────────────────────────────
+const WEAPON_TIERS = [
+  { damage:1, interval:0.18, color:0xffee58, name:'Pistol'       },
+  { damage:2, interval:0.13, color:0xff9800, name:'Rifle'        },
+  { damage:3, interval:0.09, color:0xff5722, name:'Maskingevær'  },
+  { damage:5, interval:0.06, color:0xf44336, name:'Hagle'        },
+  { damage:8, interval:0.04, color:0xce93d8, name:'Rakett'       },
+];
+let weaponTier = 0;
+function currentWeapon() { return WEAPON_TIERS[Math.min(weaponTier, WEAPON_TIERS.length-1)]; }
+function upgradeWeapon() {
+  if (weaponTier < WEAPON_TIERS.length-1) weaponTier++;
+  const w = currentWeapon();
+  // Oppdater bullet-materiale farge
+  pbMat.color.setHex(w.color);
+  showFloatingText(`⬆ ${w.name}!`, '#ce93d8');
+}
+
 // Level-state
 let levelParams         = null;  // beregnet for gjeldende level
 let wavesSpawnedInLevel = 0;     // vanlige bølger spawnet
@@ -522,39 +540,53 @@ function opStr(op, val) {
   return ({ '+':'+', '-':'−', '*':'×', '/':'÷' }[op]) + val;
 }
 
+// ── Porter – én på hver SIDE av veien ─────────────────────
+// Grønn (høyre): starter positivt og stiger ved treff
+// Rød (venstre): starter negativt og stiger mot positivt ved treff
+function gateStartVal(isGood) {
+  const base = Math.max(3, 3 + Math.floor(level * 1.5));
+  return isGood ? base : -base;
+}
+
+function refreshGateLabel(gate) {
+  const val  = gate.currentVal;
+  const good = val >= 0;
+  const bg   = good ? '#2e7d32' : '#c62828';
+  const text = val >= 0 ? `+${val}` : `${val}`;
+  const newTex = textTex(text, bg, '#ffffff');
+  gate.labelMesh.material.map.dispose();
+  gate.labelMesh.material.map = newTex;
+  gate.labelMesh.material.needsUpdate = true;
+  // Oppdater flate-farge
+  gate.faceMesh.material.color.setHex(good ? 0x43a047 : 0xe53935);
+}
+
 function spawnGates(atZ) {
-  const l1 = Math.floor(Math.random()*3);
-  const l2 = (l1+1+Math.floor(Math.random()*2))%3;
+  // Venstre = rød (negativ), høyre = grønn (positiv) – tilfeldig side-bytte
+  const greenRight = Math.random() < 0.5;
+  const sides = [
+    { xPos: -(CFG.roadWidth/2 - 1.2), isGood: !greenRight },
+    { xPos:  (CFG.roadWidth/2 - 1.2), isGood:  greenRight },
+  ];
 
-  const randOp = () => {
-    const r = Math.random();
-    if (r < 0.30) return { op:'+', val: Math.max(3, Math.floor(4+wave*2)) };
-    if (r < 0.52) return { op:'-', val: Math.max(2, Math.floor(3+wave*1.5)) };
-    if (r < 0.70) return { op:'*', val: Math.random()<0.65 ? 2 : 3 };
-    if (r < 0.82) return { op:'/', val: 2 };
-    return { op:'+', val: Math.max(6, Math.floor(8+wave*2.5)) };
-  };
-
-  [l1, l2].forEach(lane => {
-    const {op, val} = randOp();
-    const result = opResult(crowdSize, op, val);
-    const good   = result >= crowdSize;
-    const mult   = op==='*';
-    const bg     = mult ? '#1565c0' : good ? '#2e7d32' : '#c62828';
-    const fg     = '#ffffff';
+  sides.forEach(({ xPos, isGood }) => {
+    const startVal = gateStartVal(isGood);
+    const bg       = isGood ? '#2e7d32' : '#c62828';
+    const text     = isGood ? `+${startVal}` : `${startVal}`;
 
     const g = new THREE.Group();
-    const mat = new THREE.MeshLambertMaterial({
-      color: mult ? 0x1e88e5 : good ? 0x43a047 : 0xe53935,
+
+    const faceMat = new THREE.MeshLambertMaterial({
+      color: isGood ? 0x43a047 : 0xe53935,
       transparent: true, opacity: 0.85
     });
-    const face = new THREE.Mesh(GEO.gate, mat);
+    const face = new THREE.Mesh(GEO.gate, faceMat);
     face.position.y = 1.3; face.castShadow = true;
     g.add(face);
 
     const lbl = new THREE.Mesh(
       new THREE.PlaneGeometry(1.8, 0.7),
-      new THREE.MeshBasicMaterial({ map: textTex(opStr(op,val), bg, fg), transparent:true, side:THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ map: textTex(text, bg, '#ffffff'), transparent:true, side:THREE.DoubleSide })
     );
     lbl.position.set(0, 1.55, 0.14);
     g.add(lbl);
@@ -565,10 +597,17 @@ function spawnGates(atZ) {
       g.add(p);
     });
 
-    g.position.set((lane-1)*CFG.laneWidth, 0, atZ);
+    g.position.set(xPos, 0, atZ);
     scene.add(g);
-    gates.push({ group:g, op, val, lane, passed:false });
+    gates.push({
+      group: g, faceMesh: face, labelMesh: lbl,
+      currentVal: startVal, isGood, xPos, passed: false
+    });
   });
+
+  // Spawn kjøretøy i midten samme Z
+  const vhp = Math.round((15 + level * 10) * (0.85 + Math.random()*0.3));
+  spawnVehicle(atZ, vhp);
 }
 
 function updateGates(dz) {
@@ -577,14 +616,14 @@ function updateGates(dz) {
     gate.group.position.z += dz;
 
     if (!gate.passed && gate.group.position.z > -1 && gate.group.position.z < 5) {
-      const cx = (gate.lane-1)*CFG.laneWidth;
-      if (Math.abs(crowdX - cx) < CFG.laneWidth*0.52) {
-        gate.passed  = true;
-        const before = crowdSize;
-        crowdSize    = opResult(crowdSize, gate.op, gate.val);
+      if (Math.abs(crowdX - gate.xPos) < 1.6) {
+        gate.passed   = true;
+        const before  = crowdSize;
+        crowdSize     = Math.max(CFG.minCrowd, Math.min(CFG.maxCrowd, crowdSize + gate.currentVal));
         rebuildCrowd();
         updateHUD();
-        showFloatingText(opStr(gate.op, gate.val), crowdSize >= before ? '#69f0ae' : '#ff5252');
+        const txt = gate.currentVal >= 0 ? `+${gate.currentVal}` : `${gate.currentVal}`;
+        showFloatingText(txt, crowdSize >= before ? '#69f0ae' : '#ff5252');
         gate.group.scale.setScalar(1.2);
         setTimeout(() => gate.group && gate.group.scale.setScalar(1), 200);
       }
@@ -595,6 +634,79 @@ function updateGates(dz) {
       gates.splice(i, 1);
     }
   }
+}
+
+// ── Kjøretøy (militær jeep i midten) ──────────────────────
+const vehicles = [];
+
+function createVehicle() {
+  const g = new THREE.Group();
+  const mk = (geo, col, x=0,y=0,z=0,rx=0,ry=0,rz=0) => {
+    const m = new THREE.Mesh(geo, gMat(col));
+    m.position.set(x,y,z);
+    if(rx||ry||rz) m.rotation.set(rx,ry,rz);
+    m.castShadow = true;
+    return m;
+  };
+
+  // Karosseri
+  g.add(mk(new THREE.BoxGeometry(2.4, 0.7, 4.4), 0xb71c1c, 0, 0.75, 0));
+  // Tak/kabin
+  g.add(mk(new THREE.BoxGeometry(1.8, 0.5, 1.8), 0x8b1a1a, 0, 1.25, 0.3));
+  // Panserplater
+  g.add(mk(new THREE.BoxGeometry(2.5, 0.12, 4.5), 0x7a1515, 0, 0.40, 0));
+  // Skull-emblem foran
+  g.add(mk(new THREE.BoxGeometry(0.5, 0.4, 0.05), 0x1a1a1a, 0, 0.75, -2.25));
+  g.add(mk(new THREE.BoxGeometry(0.3, 0.24, 0.05), 0xffffff, 0, 0.75, -2.28)); // hvit skull
+  // Frontlykter
+  [-0.7, 0.7].forEach(x => g.add(mk(new THREE.BoxGeometry(0.3,0.18,0.08), 0xffee58, x, 0.72, -2.26)));
+  // Kanon på taket
+  g.add(mk(new THREE.CylinderGeometry(0.12,0.14,0.5,8), 0x222222, 0.4, 1.65, 0.2));
+  g.add(mk(new THREE.CylinderGeometry(0.06,0.06,0.8,6), 0x111111, 0.4, 1.65, -0.55, Math.PI/2,0,0));
+  // Hjul (4 stk)
+  [[-1.3,0,-1.4],[1.3,0,-1.4],[-1.3,0,1.4],[1.3,0,1.4]].forEach(([x,y,z]) => {
+    const w = mk(new THREE.CylinderGeometry(0.52,0.52,0.32,10), 0x1a1a1a, x,0.42+y,z, 0,0,Math.PI/2);
+    g.add(w);
+    // Felg
+    g.add(mk(new THREE.CylinderGeometry(0.28,0.28,0.34,8), 0x444444, x,0.42+y,z, 0,0,Math.PI/2));
+  });
+  return g;
+}
+
+function spawnVehicle(atZ, hp) {
+  const g  = new THREE.Group();
+  const vg = createVehicle();
+  g.add(vg);
+
+  const tex = hpTex(hp, hp);
+  const lbl = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.5, 0.6),
+    new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
+  );
+  lbl.position.y = 2.6;
+  g.add(lbl);
+
+  g.position.set(0, 0, atZ);
+  scene.add(g);
+  vehicles.push({ group:g, hp, maxHp:hp, labelMesh:lbl, alive:true });
+}
+
+function updateVehicles(dz) {
+  for (let i = vehicles.length-1; i >= 0; i--) {
+    const v = vehicles[i];
+    v.group.position.z += dz;
+    if (v.group.position.z > 30) {
+      scene.remove(v.group);
+      vehicles.splice(i, 1);
+    }
+  }
+}
+
+function refreshVehicleHP(v) {
+  const newTex = hpTex(v.hp, v.maxHp);
+  v.labelMesh.material.map.dispose();
+  v.labelMesh.material.map = newTex;
+  v.labelMesh.material.needsUpdate = true;
 }
 
 // ── Fiender ────────────────────────────────────────────────
@@ -884,28 +996,63 @@ function updateBullets(dt) {
     b.mesh.position.z -= pSpeed * dt;
     b.mesh.position.x += b.vx;
 
-    // Treff fiende?
+    // Treff gate?
     let hit = false;
-    for (const en of enemies) {
-      if (!en.alive) continue;
-      const dz = b.mesh.position.z - en.group.position.z;
-      const dx = b.mesh.position.x - en.group.position.x;
-      if (Math.abs(dz) < 2.8 && Math.abs(dx) < 3.2) {
-        en.hp -= CFG.bulletDmg;
-        hit = true;
-        refreshEnemyHP(en);
-        if (en.hp <= 0) {
-          en.alive = false;
-          scene.remove(en.group);
-          const idx = enemies.indexOf(en);
-          if (idx !== -1) enemies.splice(idx, 1);
-          if (en.isBoss) {
-            // Boss beseiret – neste level
-            setTimeout(nextLevel, 600);
+    for (const gate of gates) {
+      if (gate.passed) continue;
+      const gz = b.mesh.position.z - gate.group.position.z;
+      const gx = b.mesh.position.x - gate.xPos;
+      if (Math.abs(gz) < 1.4 && Math.abs(gx) < 1.2) {
+        gate.currentVal += 1;
+        refreshGateLabel(gate);
+        hit = true; break;
+      }
+    }
+
+    if (!hit) {
+      // Treff kjøretøy?
+      for (const v of vehicles) {
+        if (!v.alive) continue;
+        const vz = b.mesh.position.z - v.group.position.z;
+        const vx = b.mesh.position.x - v.group.position.x;
+        if (Math.abs(vz) < 3.0 && Math.abs(vx) < 1.8) {
+          v.hp -= currentWeapon().damage;
+          hit = true;
+          refreshVehicleHP(v);
+          if (v.hp <= 0) {
+            v.alive = false;
+            scene.remove(v.group);
+            const idx = vehicles.indexOf(v);
+            if (idx !== -1) vehicles.splice(idx, 1);
+            upgradeWeapon();
           }
-          updateHUD();
+          break;
         }
-        break;
+      }
+    }
+
+    if (!hit) {
+      // Treff fiende?
+      for (const en of enemies) {
+        if (!en.alive) continue;
+        const dz = b.mesh.position.z - en.group.position.z;
+        const dx = b.mesh.position.x - en.group.position.x;
+        if (Math.abs(dz) < 2.8 && Math.abs(dx) < 3.2) {
+          en.hp -= currentWeapon().damage;
+          hit = true;
+          refreshEnemyHP(en);
+          if (en.hp <= 0) {
+            en.alive = false;
+            scene.remove(en.group);
+            const idx = enemies.indexOf(en);
+            if (idx !== -1) enemies.splice(idx, 1);
+            if (en.isBoss) {
+              setTimeout(nextLevel, 600);
+            }
+            updateHUD();
+          }
+          break;
+        }
       }
     }
 
@@ -1041,6 +1188,8 @@ function startGame() {
   flashes.forEach(f => { f.mesh.visible=false; f.timer=0; });
   bulletPool.forEach(m => { m.visible=false; });
 
+  weaponTier = 0;
+  vehicles.forEach(v => scene.remove(v.group)); vehicles.length=0;
   crowdSize=CFG.startCrowd;
   level=1; levelParams=getLevelParams(1);
   speed=levelParams.worldSpeed;
@@ -1129,6 +1278,7 @@ function loop(ts) {
     updateRoad(dz);
     updateProps(dz);
     updateGates(dz);
+    updateVehicles(dz);
     // Sender dz=0 til updateEnemies under kamp slik at fienden ikke drifter med verden –
     // fienden styrer sin egen marsj i updateEnemies via _dt
     updateEnemies(combat ? 0 : dz);
