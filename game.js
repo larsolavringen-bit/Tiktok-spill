@@ -74,47 +74,110 @@ Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:
 sun.shadow.mapSize.set(1024, 1024);
 scene.add(sun);
 
-// ── Geomtrier ──────────────────────────────────────────────
+// ── Geometrier ─────────────────────────────────────────────
+// Delte geometrier for alle soldater (lav poly, god ytelse)
 const GEO = {
-  body:   new THREE.CylinderGeometry(0.22, 0.22, 0.55, 7),
-  head:   new THREE.SphereGeometry(0.2, 8, 8),
-  leg:    new THREE.CylinderGeometry(0.08, 0.08, 0.35, 6),
-  gun:    new THREE.BoxGeometry(0.08, 0.08, 0.45),
-  bullet: new THREE.SphereGeometry(0.1, 6, 6),
-  eBullet:new THREE.SphereGeometry(0.13, 6, 6),
-  gate:   new THREE.BoxGeometry(2.0, 2.6, 0.22),
-  post:   new THREE.BoxGeometry(0.14, 3.1, 0.14),
+  // Soldat-deler
+  sHead:   new THREE.SphereGeometry(0.17, 7, 6),
+  sHelmet: new THREE.CylinderGeometry(0.185, 0.195, 0.13, 8),
+  sBrim:   new THREE.CylinderGeometry(0.22,  0.22,  0.04, 8),  // hjelmskygge
+  sTorso:  new THREE.BoxGeometry(0.36, 0.38, 0.20),
+  sPack:   new THREE.BoxGeometry(0.16, 0.20, 0.09),             // ryggsekk
+  sArm:    new THREE.BoxGeometry(0.10, 0.30, 0.10),
+  sThigh:  new THREE.BoxGeometry(0.13, 0.22, 0.13),
+  sBoot:   new THREE.BoxGeometry(0.13, 0.17, 0.16),
+  sRifle:  new THREE.BoxGeometry(0.06, 0.06, 0.40),
+  sBarrel: new THREE.BoxGeometry(0.04, 0.04, 0.15),
+  // Skudd
+  bullet:  new THREE.SphereGeometry(0.10, 6, 6),
+  eBullet: new THREE.SphereGeometry(0.13, 6, 6),
+  // Porter
+  gate:    new THREE.BoxGeometry(2.0, 2.6, 0.22),
+  post:    new THREE.BoxGeometry(0.14, 3.1, 0.14),
 };
 
+// Material-cache: én instans per hex-farge
+const _matCache = {};
+function gMat(hex) {
+  if (!_matCache[hex]) _matCache[hex] = new THREE.MeshLambertMaterial({ color: hex });
+  return _matCache[hex];
+}
+// Faste delte materialer
+const MAT_SKIN  = gMat(0xffcc80);
+const MAT_DARK  = gMat(0x1a1a1a);   // rifle, støvler
 const MAT = {
   bulletPlayer: new THREE.MeshBasicMaterial({ color: 0xffee58 }),
   bulletEnemy:  new THREE.MeshBasicMaterial({ color: 0xff5252 }),
 };
 
-// ── Figur-fabrikk ──────────────────────────────────────────
-function makeFigure(isEnemy) {
-  const root = new THREE.Group();
-  const col = isEnemy
-    ? { body:0xef5350, head:0xffcc80, leg:0xb71c1c, gun:0x333333 }
-    : { body:0x42a5f5, head:0xffcc80, leg:0x1565c0, gun:0x212121 };
+// ── Soldat-fabrikk (erstatter makeFigure) ──────────────────
+// teamColor: lagets primærfarge (hjelm + uniform).
+// Returnerer THREE.Group med userData.legL / legR for animasjon.
+function createSoldier(teamColor) {
+  const root   = new THREE.Group();
+  const tMat   = gMat(teamColor);
+  // Litt mørkere for bukser/ryggsekk
+  const darker = new THREE.Color(teamColor).multiplyScalar(0.6).getHex();
+  const dkMat  = gMat(darker);
 
-  const mk = (geo, color) => {
-    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color }));
+  // Hjelpefunksjon: lag mesh, sett posisjon og legg til root
+  const add = (geo, mat, x, y, z) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
     m.castShadow = true;
+    root.add(m);
     return m;
   };
 
-  const body = mk(GEO.body, col.body); body.position.y = 0.55; root.add(body);
-  const head = mk(GEO.head, col.head); head.position.y = 1.06; root.add(head);
-  const legL = mk(GEO.leg,  col.leg);  legL.position.set(-0.12, 0.18, 0); root.add(legL);
-  const legR = mk(GEO.leg,  col.leg);  legR.position.set( 0.12, 0.18, 0); root.add(legR);
+  // ── Ben (to grupper med pivot i hoftehøyde → gir bensving) ─
+  const makeleg = (side) => {
+    const g = new THREE.Group();
+    g.position.set(side * 0.115, 0.42, 0);   // hofte-pivot
 
-  // Gevær
-  const gun = mk(GEO.gun, col.gun);
-  gun.position.set(isEnemy ? -0.3 : 0.3, 0.68, isEnemy ? 0.22 : -0.22);
-  gun.rotation.x = isEnemy ? -Math.PI*0.15 : Math.PI*0.15;
-  root.add(gun);
+    const thigh = new THREE.Mesh(GEO.sThigh, dkMat);
+    thigh.position.set(0, -0.11, 0);
+    thigh.castShadow = true;
+    g.add(thigh);
 
+    const boot = new THREE.Mesh(GEO.sBoot, MAT_DARK);
+    boot.position.set(0, -0.30, 0.015);
+    boot.castShadow = true;
+    g.add(boot);
+
+    root.add(g);
+    return g;
+  };
+  const legL = makeleg(-1);
+  const legR = makeleg( 1);
+
+  // ── Torso ──────────────────────────────────────────────────
+  add(GEO.sTorso, tMat, 0, 0.65, 0);
+
+  // ── Ryggsekk ───────────────────────────────────────────────
+  add(GEO.sPack, dkMat, 0, 0.65, -0.155);
+
+  // ── Armer ──────────────────────────────────────────────────
+  add(GEO.sArm, tMat, -0.25, 0.65, 0);
+  add(GEO.sArm, tMat,  0.25, 0.65, 0);
+
+  // ── Gevær (holdt foran høyre arm) ──────────────────────────
+  const rifle = new THREE.Group();
+  rifle.position.set(0.22, 0.60, -0.20);
+  rifle.rotation.x = 0.28;
+  const rBody = new THREE.Mesh(GEO.sRifle,  MAT_DARK); rBody.castShadow = true;
+  const rBar  = new THREE.Mesh(GEO.sBarrel, MAT_DARK);
+  rBar.position.set(0, 0, -0.26);
+  rifle.add(rBody, rBar);
+  root.add(rifle);
+
+  // ── Hode ───────────────────────────────────────────────────
+  add(GEO.sHead, MAT_SKIN, 0, 1.02, 0);
+
+  // ── Hjelm (to deler: kuppel + skygge) ──────────────────────
+  add(GEO.sHelmet, tMat,  0, 1.155, 0);
+  add(GEO.sBrim,   tMat,  0, 1.09,  0.045);  // liten front-skygge
+
+  // Lagre bein-referanser for animasjon
   root.userData.legL = legL;
   root.userData.legR = legR;
   return root;
@@ -169,7 +232,7 @@ function rebuildCrowd() {
   crowdFigs.length = 0;
   const n = Math.min(crowdSize, 80);
   for (let i = 0; i < n; i++) {
-    const fig   = makeFigure(false);
+    const fig   = createSoldier(0x1565c0);  // blå spiller-soldater
     const angle = i * 2.39996;
     const r     = i === 0 ? 0 : Math.sqrt(i / n) * CFG.crowdSpread;
     fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
@@ -306,7 +369,7 @@ function spawnEnemy(atZ, waveNum) {
 
   const g = new THREE.Group();
   for (let i = 0; i < count; i++) {
-    const fig   = makeFigure(true);
+    const fig   = createSoldier(0xc62828);  // rød fiende-soldater
     if (isBoss) fig.scale.setScalar(1.4);
     const angle = i*2.39996;
     const r     = i===0 ? 0 : Math.sqrt(i/count)*(isBoss?3.2:2.4);
