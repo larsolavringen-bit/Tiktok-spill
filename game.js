@@ -40,8 +40,8 @@ const CFG = {
 // ── State ──────────────────────────────────────────────────
 let state     = 'start';
 let crowdSize = 0;
-let wave      = 0;
-let highScore = 0;
+let level     = 1;       // nåværende level (vises i HUD)
+let highScore = 0;       // høyeste level nådd
 let speed     = CFG.runSpeed;
 let crowdX    = 0;
 let targetX   = 0;
@@ -50,6 +50,28 @@ let lastGateTravel  = 0;
 let lastEnemyTravel = 0;
 let shootTimer      = 0;
 let enemyShootTimer = 0;
+
+// Level-state
+let levelParams         = null;  // beregnet for gjeldende level
+let wavesSpawnedInLevel = 0;     // vanlige bølger spawnet
+let bossSpawnedThisLevel = false;
+
+// ── Level-parametre ────────────────────────────────────────
+// Returnerer vanskelighetsparametere for gitt level-nummer.
+// Juster disse for å endre kurven.
+function getLevelParams(lvl) {
+  const n   = lvl - 1;
+  const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
+  return {
+    worldSpeed:      Math.min(4 + n * 0.7 + rnd(), 14),
+    wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5) + (Math.random() < 0.4 ? 1 : 0)),
+    enemyHP:         Math.round((10 + n * 5) * (1 + rnd())),
+    enemyCount:      Math.min(3 + Math.floor(n * 0.8), CFG.maxEnemyCount),
+    bossHP:          Math.round((40 + n * 22) * (1 + rnd())),
+    gateInterval:    Math.max(14, 22 - n * 0.6),
+    enemyInterval:   Math.max(35, 50 - n * 1.2),
+  };
+}
 
 // ── Three.js ───────────────────────────────────────────────
 const canvas   = document.getElementById('game-canvas');
@@ -593,19 +615,99 @@ function hpTex(hp, maxHp) {
   return new THREE.CanvasTexture(c);
 }
 
-function spawnEnemy(atZ, waveNum) {
-  const isBoss = (waveNum % CFG.bossEveryN === 0);
-  const baseHP = Math.round(CFG.baseEnemyHP * Math.pow(CFG.enemyHPScale, waveNum-1));
-  const hp     = isBoss ? baseHP * CFG.bossMultiplier : baseHP;
-  const count  = isBoss ? 16 : Math.min(4 + waveNum, CFG.maxEnemyCount);
-  const spread = isBoss ? CFG.enemySpread * 1.4 : CFG.enemySpread;
+// ── Boss-modell ─────────────────────────────────────────────
+function createBoss() {
+  const root = new THREE.Group();
+  const mk = (geo, col, x=0,y=0,z=0,rx=0,ry=0,rz=0) => {
+    const m = new THREE.Mesh(geo, gMat(col));
+    m.position.set(x,y,z);
+    if(rx||ry||rz) m.rotation.set(rx,ry,rz);
+    m.castShadow = true;
+    return m;
+  };
 
+  // Ben
+  const makeLeg = (side) => {
+    const g = new THREE.Group();
+    g.position.set(side*0.26, 0.6, 0);
+    g.add(mk(new THREE.BoxGeometry(0.34,0.40,0.34), 0x111111, 0,-0.20,0)); // lår
+    g.add(mk(new THREE.BoxGeometry(0.30,0.36,0.32), 0x0d0d0d, 0,-0.53,0)); // legg
+    g.add(mk(new THREE.BoxGeometry(0.16,0.10,0.10), 0xcc1111, 0,-0.30,0.16)); // rød knepad
+    g.add(mk(new THREE.BoxGeometry(0.36,0.22,0.40), 0x0a0a0a, 0,-0.76,0.04)); // støvel
+    root.add(g);
+    return g;
+  };
+  const legL = makeLeg(-1);
+  const legR = makeLeg( 1);
+
+  // Torso – tung panserplate
+  root.add(mk(new THREE.BoxGeometry(0.90,0.66,0.48), 0x111111, 0,0.98,0));
+  // Rød dødninghode-plate på brystet
+  root.add(mk(new THREE.BoxGeometry(0.44,0.30,0.06), 0x0d0d0d, 0,1.04,0.26));
+  root.add(mk(new THREE.BoxGeometry(0.26,0.18,0.06), 0xcc1111, 0,1.04,0.30)); // rød emblem
+  // Belte med lommer
+  root.add(mk(new THREE.BoxGeometry(0.88,0.14,0.40), 0x1a1a1a, 0,0.68,0));
+  [-0.28,0,0.28].forEach(x=>root.add(mk(new THREE.BoxGeometry(0.18,0.12,0.08),0x0d0d0d,x,0.68,0.22)));
+
+  // Skulderplater – store bokser
+  [-1,1].forEach(s => {
+    root.add(mk(new THREE.BoxGeometry(0.28,0.22,0.42), 0x0d0d0d, s*0.62,1.18,0));
+    root.add(mk(new THREE.BoxGeometry(0.22,0.10,0.38), 0x111111, s*0.64,1.04,0));
+    // Rød detalj på skulder
+    root.add(mk(new THREE.BoxGeometry(0.12,0.08,0.14), 0xcc1111, s*0.62,1.22,0));
+  });
+
+  // Armer
+  [-1,1].forEach(s => {
+    root.add(mk(new THREE.BoxGeometry(0.22,0.36,0.22), 0x111111, s*0.60,0.88,0));
+    root.add(mk(new THREE.BoxGeometry(0.20,0.32,0.20), 0x0d0d0d, s*0.60,0.56,0));
+    root.add(mk(new THREE.SphereGeometry(0.14,7,6),    0x0a0a0a, s*0.60,0.38,0)); // hanske
+  });
+
+  // Tungt maskingevær (venstre arm)
+  const gun = new THREE.Group();
+  gun.position.set(-0.55, 0.72, -0.26);
+  gun.rotation.x = 0.15;
+  gun.add(mk(new THREE.BoxGeometry(0.14,0.14,0.80), 0x1a1a1a));
+  gun.add(mk(new THREE.BoxGeometry(0.10,0.10,0.34), 0x111111, 0, 0, -0.54)); // løp
+  gun.add(mk(new THREE.BoxGeometry(0.08,0.20,0.08), 0x222222, 0,-0.14, 0.10)); // magasin
+  gun.add(mk(new THREE.CylinderGeometry(0.04,0.04,0.28,6), 0x0d0d0d, -0.10,0.08,0, 0,0,Math.PI/2)); // hank
+  root.add(gun);
+
+  // Ryggsekk / radio
+  root.add(mk(new THREE.BoxGeometry(0.34,0.44,0.14), 0x111111, 0,1.00,-0.30));
+  root.add(mk(new THREE.BoxGeometry(0.08,0.08,0.04), 0x1a1a1a, 0.10,1.34,-0.30));
+  // Antenne
+  root.add(mk(new THREE.CylinderGeometry(0.02,0.02,0.52,5), 0x222222, 0.12,1.66,-0.28));
+
+  // Hode
+  const head = new THREE.Group();
+  head.position.set(0,1.58,0);
+  head.add(mk(new THREE.SphereGeometry(0.32,9,7), 0xffcc80)); // ansikt
+  // Øyne
+  [-0.10,0.10].forEach(ex=>head.add(mk(new THREE.BoxGeometry(0.08,0.11,0.04),0x080808,ex,-0.02,0.30)));
+  // Stor hjelm
+  head.add(mk(new THREE.SphereGeometry(0.40,10,8,0,Math.PI*2,0,Math.PI*0.62), 0x0d0d0d, 0,0.06,0));
+  head.add(mk(new THREE.CylinderGeometry(0.42,0.42,0.06,10), 0x0d0d0d, 0,-0.10,0)); // kant
+  // Rødt hode-emblem
+  head.add(mk(new THREE.BoxGeometry(0.22,0.18,0.04), 0x0d0d0d, 0, 0.04,0.38));
+  head.add(mk(new THREE.BoxGeometry(0.14,0.11,0.04), 0xcc1111, 0, 0.04,0.41)); // rød skull
+  // Sidepaneler på hjelm
+  [-1,1].forEach(s=>head.add(mk(new THREE.BoxGeometry(0.06,0.14,0.16),0x111111,s*0.39,0.04,0.08)));
+  root.add(head);
+
+  root.userData.legL = legL;
+  root.userData.legR = legR;
+  return root;
+}
+
+// ── Spawn vanlige fiender (tar HP og antall direkte) ────────
+function spawnEnemy(atZ, hp, count) {
   const g = new THREE.Group();
   for (let i = 0; i < count; i++) {
     const fig   = createSoldier(0xc62828);
-    if (isBoss) fig.scale.setScalar(1.5 / CFG.soldierScale); // boss større relativt
     const angle = i * 2.39996;
-    const r     = i === 0 ? 0 : Math.sqrt(i / count) * spread;
+    const r     = i === 0 ? 0 : Math.sqrt(i / count) * CFG.enemySpread;
     fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
     g.add(fig);
   }
@@ -615,21 +717,39 @@ function spawnEnemy(atZ, waveNum) {
     new THREE.PlaneGeometry(4.8, 0.82),
     new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
   );
-  lbl.position.y = isBoss ? 4.2 : 3.0;
+  lbl.position.y = 3.0;
   g.add(lbl);
-
-  if (isBoss) {
-    const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(2.8, 0.2, 8, 32),
-      new THREE.MeshLambertMaterial({ color:0xffd600 })
-    );
-    ring.rotation.x = Math.PI/2; ring.position.y = 0.2;
-    g.add(ring);
-  }
 
   g.position.set(0, 0, atZ);
   scene.add(g);
-  enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss, alive:true });
+  enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss:false, alive:true });
+}
+
+// ── Spawn boss for gjeldende level ─────────────────────────
+function spawnBoss(atZ, hp) {
+  const g = new THREE.Group();
+  const bossFig = createBoss();
+  g.add(bossFig);
+
+  const tex = hpTex(hp, hp);
+  const lbl = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.0, 1.0),
+    new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
+  );
+  lbl.position.y = 5.2;
+  g.add(lbl);
+
+  // Gyllen ring under bossen
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(1.8, 0.18, 8, 32),
+    new THREE.MeshLambertMaterial({ color:0xcc1111 })
+  );
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.12;
+  g.add(ring);
+
+  g.position.set(0, 0, atZ);
+  scene.add(g);
+  enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss:true, alive:true });
 }
 
 // Nærmeste fiende (høyest Z = nærmest crowd)
@@ -779,10 +899,11 @@ function updateBullets(dt) {
           scene.remove(en.group);
           const idx = enemies.indexOf(en);
           if (idx !== -1) enemies.splice(idx, 1);
-          wave++;
-          speed += CFG.speedIncrement;
+          if (en.isBoss) {
+            // Boss beseiret – neste level
+            setTimeout(nextLevel, 600);
+          }
           updateHUD();
-          if (wave >= CFG.winAtWave) setTimeout(triggerVictory, 400);
         }
         break;
       }
@@ -848,14 +969,38 @@ function showFloatingText(text, color) {
 // ── Spawn-system ───────────────────────────────────────────
 function checkSpawns(dz) {
   travelZ += dz;
-  if (travelZ - lastGateTravel >= CFG.gateInterval) {
-    lastGateTravel += CFG.gateInterval;
+  const lp = levelParams;
+
+  if (travelZ - lastGateTravel >= lp.gateInterval) {
+    lastGateTravel += lp.gateInterval;
     spawnGates(-CFG.gateInterval);
   }
-  if (travelZ - lastEnemyTravel >= CFG.enemyInterval) {
-    lastEnemyTravel += CFG.enemyInterval;
-    spawnEnemy(-CFG.enemyInterval, wave+1);
+
+  if (travelZ - lastEnemyTravel >= lp.enemyInterval) {
+    lastEnemyTravel += lp.enemyInterval;
+
+    if (!bossSpawnedThisLevel && wavesSpawnedInLevel >= lp.wavesBeforeBoss) {
+      // Spawn boss for dette levelet
+      bossSpawnedThisLevel = true;
+      spawnBoss(-CFG.enemyInterval, lp.bossHP);
+    } else if (!bossSpawnedThisLevel) {
+      // Spawn vanlig fiendebølge
+      wavesSpawnedInLevel++;
+      spawnEnemy(-CFG.enemyInterval, lp.enemyHP, lp.enemyCount);
+    }
   }
+}
+
+// Går opp ett level og starter det neste
+function nextLevel() {
+  level++;
+  levelParams           = getLevelParams(level);
+  speed                 = levelParams.worldSpeed;
+  wavesSpawnedInLevel   = 0;
+  bossSpawnedThisLevel  = false;
+  lastEnemyTravel       = travelZ; // reset fiende-timer
+  showFloatingText(`LEVEL ${level}`, '#ffee58');
+  updateHUD();
 }
 
 // ── Input ──────────────────────────────────────────────────
@@ -880,7 +1025,7 @@ function clampX(x) {
 // ── HUD ────────────────────────────────────────────────────
 function updateHUD() {
   document.getElementById('crowd-count').textContent = crowdSize;
-  document.getElementById('score-display').textContent = `Bølge: ${wave}`;
+  document.getElementById('score-display').textContent = `Level: ${level}`;
 }
 
 // ── Start / restart ────────────────────────────────────────
@@ -896,7 +1041,10 @@ function startGame() {
   flashes.forEach(f => { f.mesh.visible=false; f.timer=0; });
   bulletPool.forEach(m => { m.visible=false; });
 
-  crowdSize=CFG.startCrowd; wave=0; speed=CFG.runSpeed;
+  crowdSize=CFG.startCrowd;
+  level=1; levelParams=getLevelParams(1);
+  speed=levelParams.worldSpeed;
+  wavesSpawnedInLevel=0; bossSpawnedThisLevel=false;
   crowdX=0; targetX=0; travelZ=0;
   lastGateTravel=0; lastEnemyTravel=0;
   shootTimer=0; enemyShootTimer=0;
@@ -905,9 +1053,10 @@ function startGame() {
   rebuildCrowd();
   updateHUD();
 
-  // Forhåndsspawn
+  // Forhåndsspawn første gate og første fiendebølge
   spawnGates(-CFG.gateInterval);
-  spawnEnemy(-CFG.enemyInterval, 1);
+  spawnEnemy(-CFG.enemyInterval, levelParams.enemyHP, levelParams.enemyCount);
+  wavesSpawnedInLevel = 1;
 
   ['start-screen','gameover-screen','victory-screen'].forEach(id =>
     document.getElementById(id).classList.add('hidden'));
@@ -918,17 +1067,17 @@ function startGame() {
 function triggerGameOver() {
   if (state==='dead') return;
   state='dead';
-  if (wave>highScore) highScore=wave;
-  document.getElementById('final-score').textContent      = `Du klarte bølge ${wave}`;
-  document.getElementById('high-score-display').textContent = `Rekord: ${highScore}`;
+  if (level > highScore) highScore = level;
+  document.getElementById('final-score').textContent        = `Du kom til Level ${level}`;
+  document.getElementById('high-score-display').textContent = `Rekord: Level ${highScore}`;
   document.getElementById('gameover-screen').classList.remove('hidden');
 }
 
 function triggerVictory() {
   if (state==='victory') return;
   state='victory';
-  if (wave>highScore) highScore=wave;
-  document.getElementById('victory-score').textContent = `${wave} bølger klart! Mengde: ${crowdSize}`;
+  if (level > highScore) highScore = level;
+  document.getElementById('victory-score').textContent = `Level ${level} klart! Mengde: ${crowdSize}`;
   document.getElementById('victory-screen').classList.remove('hidden');
 }
 
