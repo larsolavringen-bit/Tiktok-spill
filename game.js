@@ -5,15 +5,18 @@
 //  Verden ruller mot kamera, crowd er statisk i Z.
 // ============================================================
 
+// ── Verdensfart (juster denne for å endre tempo) ───────────
+const WORLD_SPEED = 7; // enheter per sekund – øker svakt per bølge
+
 const CFG = {
   startCrowd:     10,
-  runSpeed:       12,
-  speedIncrement: 0.3,
+  runSpeed:       WORLD_SPEED,
+  speedIncrement: 0.15, // saktere økning per bølge
   roadWidth:       9,
   laneWidth:      2.6,
   crowdSpread:    1.9,
-  gateInterval:   18,   // kortere avstand mellom porter
-  enemyInterval:  45,   // fiender dukker opp raskere
+  gateInterval:   22,
+  enemyInterval:  50,
   bossEveryN:      5,
   baseEnemyHP:    50,
   enemyHPScale:   1.6,
@@ -22,13 +25,13 @@ const CFG = {
   minCrowd:        1,
   maxCrowd:       999,
   winAtWave:      20,
-  bulletSpeed:    28,
+  bulletSpeed:    26,
   shootInterval:  0.18,
   bulletDmg:       1,
   enemyShootInterval: 0.45,
-  enemyBulletSpeed:   18,
-  enemyWalkSpeed:      5,
-  hardThreshold:      80,  // HP over dette = spilleren stopper, fienden marsjerer
+  enemyBulletSpeed:   16,
+  enemyWalkSpeed:      4,
+  hardThreshold:      80,
 };
 
 // ── State ──────────────────────────────────────────────────
@@ -719,9 +722,7 @@ function loop(ts) {
 
     updateBullets(dt);
     animateCrowd(dt);
-
-    // Kamera følger crowd X lett
-    camera.position.x += (crowdX*0.2 - camera.position.x)*dt*5;
+    // Kamera er helt statisk – verden beveger seg mot spilleren
   }
 
   renderer.render(scene, camera);
