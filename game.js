@@ -48,6 +48,7 @@ let targetX   = 0;
 let travelZ   = 0;
 let lastGateTravel  = 0;
 let lastEnemyTravel = 0;
+let tanksThisLevel  = 0;  // maks 2 tanker per level
 let shootTimer      = 0;
 let enemyShootTimer = 0;
 
@@ -85,7 +86,7 @@ function getLevelParams(lvl) {
     wavesBeforeBoss: Math.max(3, 3 + Math.floor(n * 0.8)),
     enemyHP:         Math.round((30 + n * 15) * (1 + rnd())),
     enemyCount:      Math.min(8 + Math.floor(n * 2.0), CFG.maxEnemyCount),
-    bossHP:          Math.round((120 + n * 60) * (1 + rnd())),
+    bossHP:          Math.round((200 + n * 100) * (1 + rnd())),
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
@@ -704,9 +705,12 @@ function spawnGates(atZ) {
     });
   });
 
-  // Tank spawner lengre unna og er hardere
-  const vhp = Math.round((60 + level * 25) * (0.85 + Math.random()*0.3));
-  spawnVehicle(atZ, vhp, tankX);
+  // Tank spawner maks 2 ganger per level
+  if (tanksThisLevel < 2) {
+    tanksThisLevel++;
+    const vhp = Math.round((60 + level * 25) * (0.85 + Math.random()*0.3));
+    spawnVehicle(atZ, vhp, tankX);
+  }
 }
 
 function updateGates(dz) {
@@ -1066,25 +1070,39 @@ function spawnDoubleWave(atZ, hp, count) {
 function spawnBoss(atZ, hp) {
   const g = new THREE.Group();
   const bossFig = createBoss();
+
+  // Boss skaleres opp basert på level – blir større og større
+  const bossScale = 1.8 + Math.min(level * 0.15, 1.2);
+  bossFig.scale.setScalar(bossScale);
   g.add(bossFig);
 
   const tex = hpTex(hp, hp);
   const lbl = new THREE.Mesh(
-    new THREE.PlaneGeometry(6.0, 1.0),
+    new THREE.PlaneGeometry(7.0, 1.2),
     new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
   );
-  lbl.position.y = 5.2;
+  lbl.position.y = 5.5 + bossScale * 0.8;
   g.add(lbl);
 
-  // Gyllen ring under bossen
+  // Stor rød puls-ring under bossen
   const ring = new THREE.Mesh(
-    new THREE.TorusGeometry(1.8, 0.18, 8, 32),
+    new THREE.TorusGeometry(2.8, 0.28, 8, 32),
     new THREE.MeshLambertMaterial({ color:0xcc1111 })
   );
   ring.rotation.x = Math.PI/2; ring.position.y = 0.12;
   g.add(ring);
 
+  // Ekstra ytre ring
+  const ring2 = new THREE.Mesh(
+    new THREE.TorusGeometry(4.2, 0.14, 6, 24),
+    new THREE.MeshLambertMaterial({ color:0xff3333 })
+  );
+  ring2.rotation.x = Math.PI/2; ring2.position.y = 0.12;
+  g.add(ring2);
+
   g.position.set(0, 0, atZ);
+  g.userData.bossRing = ring;
+  g.userData.bossRing2 = ring2;
   scene.add(g);
   enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss:true, alive:true });
 }
@@ -1111,7 +1129,7 @@ function updateEnemies(dz) {
     }
 
     // Ikke la fienden overskride crowd-posisjonen
-    if (en.group.position.z > -2) en.group.position.z = -2;
+    if (en.group.position.z > -4) en.group.position.z = -4; // stopp rett foran crowd
 
     if (en.group.position.z > 30) {
       scene.remove(en.group);
@@ -1378,7 +1396,8 @@ function nextLevel() {
   speed                 = levelParams.worldSpeed;
   wavesSpawnedInLevel   = 0;
   bossSpawnedThisLevel  = false;
-  lastEnemyTravel       = travelZ; // reset fiende-timer
+  tanksThisLevel        = 0;
+  lastEnemyTravel       = travelZ;
   showFloatingText(`LEVEL ${level}`, '#ffee58');
   updateHUD();
 }
@@ -1433,7 +1452,7 @@ function startGame() {
   crowdSize=CFG.startCrowd;
   level=1; levelParams=getLevelParams(1);
   speed=levelParams.worldSpeed;
-  wavesSpawnedInLevel=0; bossSpawnedThisLevel=false;
+  wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
   crowdX=0; targetX=0; travelZ=0;
   lastGateTravel=0; lastEnemyTravel=0;
   shootTimer=0; enemyShootTimer=0;
@@ -1509,10 +1528,10 @@ function loop(ts) {
     // Sjekk om vi er i kamp
     const combat = inCombat();
     const front  = closestEnemy();
-    // Vanskelig fiende: HP over terskel → spilleren stopper, fienden marsjerer mot dem
-    const hardEnemy = front && front.hp > CFG.hardThreshold;
 
-    const crowdStopped = combat && hardEnemy;
+    // Stopp ALT når fienden er rett på crowd – hold posisjonen til fienden er død
+    const enemyAtGate = front && front.group.position.z > -5;
+    const crowdStopped = enemyAtGate;
     const dz = crowdStopped ? 0 : speed * dt;
 
     updateRoad(dz);
@@ -1543,7 +1562,15 @@ function loop(ts) {
 
     updateBullets(dt);
     animateCrowd(dt);
-    // Kamera er helt statisk – verden beveger seg mot spilleren
+
+    // Animer boss-ringer (pulserer og roterer)
+    enemies.forEach(en => {
+      if (!en.isBoss) return;
+      const r1 = en.group.userData.bossRing;
+      const r2 = en.group.userData.bossRing2;
+      if (r1) { r1.rotation.z += dt * 1.2; r1.scale.setScalar(1 + Math.sin(Date.now()*0.004)*0.08); }
+      if (r2) { r2.rotation.z -= dt * 0.7; }
+    });
   }
 
   renderer.render(scene, camera);
