@@ -11,16 +11,19 @@ const WORLD_SPEED = 7; // enheter per sekund – øker svakt per bølge
 const CFG = {
   startCrowd:     10,
   runSpeed:       WORLD_SPEED,
-  speedIncrement: 0.15, // saktere økning per bølge
+  speedIncrement: 0.15,
   roadWidth:       9,
   laneWidth:      2.6,
-  crowdSpread:    1.9,
+  crowdSpread:    3.2,   // mye mer avstand mellom spillerfigurer
+  soldierScale:   0.62,  // global skala for soldater (ned fra ~1.0)
   gateInterval:   22,
   enemyInterval:  50,
   bossEveryN:      5,
-  baseEnemyHP:    50,
-  enemyHPScale:   1.6,
-  bossMultiplier:  4,
+  baseEnemyHP:    20,    // mye lavere start-HP
+  enemyHPScale:   1.4,   // saktere HP-vekst
+  bossMultiplier:  3,
+  enemySpread:    3.5,   // mer avstand mellom fiendefigurer
+  maxEnemyCount:  12,    // færre figurer per bølge
   keySpeed:        7,
   minCrowd:        1,
   maxCrowd:       999,
@@ -28,10 +31,10 @@ const CFG = {
   bulletSpeed:    26,
   shootInterval:  0.18,
   bulletDmg:       1,
-  enemyShootInterval: 0.45,
-  enemyBulletSpeed:   16,
-  enemyWalkSpeed:      4,
-  hardThreshold:      80,
+  enemyShootInterval: 0.5,
+  enemyBulletSpeed:   14,
+  enemyWalkSpeed:      3,
+  hardThreshold:      60,
 };
 
 // ── State ──────────────────────────────────────────────────
@@ -262,7 +265,8 @@ function createSoldier(teamColor) {
 
   root.userData.legL = legL;
   root.userData.legR = legR;
-  root.userData.headGrp = headGrp; // for evt. hode-bobbing
+  root.userData.headGrp = headGrp;
+  root.scale.setScalar(CFG.soldierScale); // global skala – juster CFG.soldierScale
   return root;
 }
 
@@ -593,15 +597,16 @@ function spawnEnemy(atZ, waveNum) {
   const isBoss = (waveNum % CFG.bossEveryN === 0);
   const baseHP = Math.round(CFG.baseEnemyHP * Math.pow(CFG.enemyHPScale, waveNum-1));
   const hp     = isBoss ? baseHP * CFG.bossMultiplier : baseHP;
-  const count  = isBoss ? 24 : Math.min(6+waveNum*2, 30);
+  const count  = isBoss ? 16 : Math.min(4 + waveNum, CFG.maxEnemyCount);
+  const spread = isBoss ? CFG.enemySpread * 1.4 : CFG.enemySpread;
 
   const g = new THREE.Group();
   for (let i = 0; i < count; i++) {
-    const fig   = createSoldier(0xc62828);  // rød fiende-soldater
-    if (isBoss) fig.scale.setScalar(1.4);
-    const angle = i*2.39996;
-    const r     = i===0 ? 0 : Math.sqrt(i/count)*(isBoss?3.2:2.4);
-    fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.45);
+    const fig   = createSoldier(0xc62828);
+    if (isBoss) fig.scale.setScalar(1.5 / CFG.soldierScale); // boss større relativt
+    const angle = i * 2.39996;
+    const r     = i === 0 ? 0 : Math.sqrt(i / count) * spread;
+    fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
     g.add(fig);
   }
 
