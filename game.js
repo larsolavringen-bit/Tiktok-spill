@@ -1,117 +1,108 @@
 // ============================================================
 //  CROWD RUNNER – game.js
-//  Three.js r128, ingen bundler. Åpne index.html i nettleseren.
+//  Åpne index.html direkte i nettleser, ingen server nødvendig.
+//
+//  Koordinatsystem: Crowd står ved z≈0. Verden (vei, porter,
+//  fiender) beveger seg mot +Z (mot spilleren) med `speed`.
+//  Crowd-gruppen flyttes bare sidelengs (X).
 // ============================================================
 
-// ── Konfigurasjon (juster disse for vanskelighetsgrad) ─────
+// ── Konfigurasjon ──────────────────────────────────────────
 const CFG = {
-  startCrowd:      10,      // Antall figurer ved start
-  runSpeed:        8,       // Grunnfart fremover (enheter/s)
-  speedIncrement:  0.3,     // Økning per bølge
-  laneWidth:       2.2,     // Bredde per felt (3 felt)
-  crowdSpread:     1.8,     // Radius crowd-formasjon
-  figureHeight:    0.9,
-  gateSpawnDist:   28,      // Avstand mellom gate-par
-  enemySpawnDist:  60,      // Avstand til fiendebølge
-  bossEveryN:      5,       // Boss hvert N bølge
-  bossMultiplier:  4,       // Boss-helse × dette vs vanlig fiende
-  baseEnemyHP:     40,      // Grunnleggende fiende-HP
-  enemyHPScale:    1.6,     // Multipliseres per bølge
-  swipeSensitivity:0.012,   // Mobil-dra følsomhet
-  keyMoveSpeed:    6,       // Tastaturbevegelse (enheter/s)
-  minCrowd:        1,
+  startCrowd:       10,    // Antall figurer ved start
+  runSpeed:          7,    // Grunnfart (enheter/s)
+  speedIncrement:  0.25,   // Fartøkning per bølge
+  roadWidth:         8,    // Total bredde av veien
+  laneWidth:       2.4,    // Bredde per felt (3 felt)
+  crowdSpread:     1.8,    // Radius for crowd-formasjon
+  gateInterval:     32,    // Avstand mellom gate-par
+  enemyInterval:    70,    // Avstand mellom fiendebølger
+  bossEveryN:        5,    // Boss hvert N. bølge (teller fra 1)
+  bossMultiplier:    4,    // Boss-HP multipliseres med dette
+  baseEnemyHP:      35,    // Fiende-HP bølge 1
+  enemyHPScale:    1.55,   // Multiplikator per bølge
+  swipeSens:       0.35,   // Mobil-dra følsomhet (enheter/px * 0.1)
+  keySpeed:          7,    // Tastaturbevegelse (enheter/s)
+  minCrowd:          1,
   maxCrowd:        999,
+  winAtWave:        20,    // Seier etter X bølger
 };
 
-// ── State ──────────────────────────────────────────────────
-let state = 'start'; // 'start' | 'playing' | 'dead' | 'victory'
-let crowd = 0;
-let wave = 0;
+// ── Spilltilstand ──────────────────────────────────────────
+let state     = 'start';  // 'start' | 'playing' | 'battle' | 'dead' | 'victory'
+let crowdSize = 0;
+let wave      = 0;
 let highScore = 0;
-let speed = CFG.runSpeed;
-let totalDist = 0;       // Løpt avstand (Z)
-let crowdX = 0;          // Sideveis posisjon på veien
-let targetX = 0;         // Smooth target
+let speed     = CFG.runSpeed;
+let spawnDist = 0;        // Total distanse spawneren har kjørt
+let crowdX    = 0;        // Nåværende X for crowd-gruppen
+let targetX   = 0;        // Ønsket X (smooth)
 
-// ── Three.js grunnoppsett ──────────────────────────────────
-const canvas = document.getElementById('game-canvas');
+// ── Three.js oppsett ───────────────────────────────────────
+const canvas   = document.getElementById('game-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog = new THREE.Fog(0x87ceeb, 40, 90);
+scene.background = new THREE.Color(0x7ec8e3);
+scene.fog        = new THREE.Fog(0x7ec8e3, 35, 85);
 
-const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 200);
-// Portrettmodus: kamera bak og over mengden
-camera.position.set(0, 14, 16);
-camera.lookAt(0, 0, -10);
+// Fast kamera – verden løper mot spilleren
+const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 150);
+camera.position.set(0, 13, 18);
+camera.lookAt(0, 0, -5);
 
-function resize() {
+function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
   renderer.setSize(w, h, false);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', resize);
-resize();
+window.addEventListener('resize', onResize);
+onResize();
 
 // Lys
-const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambient);
+scene.add(new THREE.AmbientLight(0xffffff, 0.65));
 const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(10, 20, 10);
+sun.position.set(8, 20, 8);
 sun.castShadow = true;
-sun.shadow.mapSize.width = 1024;
-sun.shadow.mapSize.height = 1024;
-sun.shadow.camera.near = 0.5;
-sun.shadow.camera.far = 100;
-sun.shadow.camera.left = -20;
-sun.shadow.camera.right = 20;
-sun.shadow.camera.top = 20;
-sun.shadow.camera.bottom = -20;
+Object.assign(sun.shadow.camera, { left:-20, right:20, top:20, bottom:-20, near:0.5, far:80 });
+sun.shadow.mapSize.set(1024, 1024);
 scene.add(sun);
 
-// ── Geometrier (gjenbrukbare) ──────────────────────────────
-const bodyGeo  = new THREE.CylinderGeometry(0.22, 0.22, 0.55, 7);
-const headGeo  = new THREE.SphereGeometry(0.2, 8, 8);
-const legGeo   = new THREE.CylinderGeometry(0.08, 0.08, 0.35, 6);
-const gateGeo  = new THREE.BoxGeometry(1.8, 2.4, 0.2);
-const postGeo  = new THREE.BoxGeometry(0.12, 2.8, 0.12);
-
-// Materialer
-const matPlayer  = new THREE.MeshLambertMaterial({ color: 0x4fc3f7 }); // lyseblå
-const matHead    = new THREE.MeshLambertMaterial({ color: 0xffcc80 }); // hudfarge
-const matLeg     = new THREE.MeshLambertMaterial({ color: 0x1565c0 }); // mørk blå
-const matEnemy   = new THREE.MeshLambertMaterial({ color: 0xef5350 }); // rød
-const matEHead   = new THREE.MeshLambertMaterial({ color: 0xffcc80 });
-const matELeg    = new THREE.MeshLambertMaterial({ color: 0xb71c1c });
-const matPost    = new THREE.MeshLambertMaterial({ color: 0xbdbdbd });
+// ── Gjenbrukbare geometrier ────────────────────────────────
+const GEO = {
+  body: new THREE.CylinderGeometry(0.22, 0.22, 0.55, 7),
+  head: new THREE.SphereGeometry(0.2, 8, 8),
+  leg:  new THREE.CylinderGeometry(0.08, 0.08, 0.35, 6),
+  gate: new THREE.BoxGeometry(1.9, 2.5, 0.22),
+  post: new THREE.BoxGeometry(0.12, 3.0, 0.12),
+};
 
 // ── Figur-fabrikk ──────────────────────────────────────────
-function makeFigure(isEnemy = false) {
+function makeFigure(isEnemy) {
   const root = new THREE.Group();
-  const bMat = isEnemy ? matEnemy  : matPlayer;
-  const hMat = isEnemy ? matEHead  : matHead;
-  const lMat = isEnemy ? matELeg   : matLeg;
+  const colors = isEnemy
+    ? { body: 0xef5350, head: 0xffcc80, leg: 0xb71c1c }
+    : { body: 0x29b6f6, head: 0xffcc80, leg: 0x0d47a1 };
 
-  const body = new THREE.Mesh(bodyGeo, bMat);
+  const body = new THREE.Mesh(GEO.body, new THREE.MeshLambertMaterial({ color: colors.body }));
   body.position.y = 0.55;
   body.castShadow = true;
   root.add(body);
 
-  const head = new THREE.Mesh(headGeo, hMat);
+  const head = new THREE.Mesh(GEO.head, new THREE.MeshLambertMaterial({ color: colors.head }));
   head.position.y = 1.05;
   head.castShadow = true;
   root.add(head);
 
-  const legL = new THREE.Mesh(legGeo, lMat);
+  const legL = new THREE.Mesh(GEO.leg, new THREE.MeshLambertMaterial({ color: colors.leg }));
   legL.position.set(-0.12, 0.18, 0);
   root.add(legL);
 
-  const legR = new THREE.Mesh(legGeo, lMat);
+  const legR = new THREE.Mesh(GEO.leg, new THREE.MeshLambertMaterial({ color: colors.leg }));
   legR.position.set(0.12, 0.18, 0);
   root.add(legR);
 
@@ -120,540 +111,501 @@ function makeFigure(isEnemy = false) {
   return root;
 }
 
-// ── Vei ───────────────────────────────────────────────────
-const ROAD_W = 8;
-const ROAD_SEG_LEN = 30;
-const NUM_ROAD_SEGS = 6;
-const roadSegs = [];
+// ── Vei (infinite recycling) ───────────────────────────────
+const SEG_LEN = 28;
+const NUM_SEGS = 7;
+const roadMats = {
+  asphalt: new THREE.MeshLambertMaterial({ color: 0x90a4ae }),
+  grass:   new THREE.MeshLambertMaterial({ color: 0x66bb6a }),
+  line:    new THREE.MeshLambertMaterial({ color: 0xffffff }),
+};
 
-const roadMat  = new THREE.MeshLambertMaterial({ color: 0xb0bec5 });
-const markMat  = new THREE.MeshLambertMaterial({ color: 0xffffff });
-const grassMat = new THREE.MeshLambertMaterial({ color: 0x66bb6a });
-
-function makeRoadSegment(z) {
+function makeRoadSeg() {
   const g = new THREE.Group();
 
-  // Asfalt
-  const road = new THREE.Mesh(
-    new THREE.BoxGeometry(ROAD_W, 0.1, ROAD_SEG_LEN),
-    roadMat
-  );
+  const road = new THREE.Mesh(new THREE.BoxGeometry(CFG.roadWidth, 0.12, SEG_LEN), roadMats.asphalt);
   road.receiveShadow = true;
   g.add(road);
 
-  // Gress på sidene
-  [-1, 1].forEach(side => {
-    const grass = new THREE.Mesh(
-      new THREE.BoxGeometry(6, 0.08, ROAD_SEG_LEN),
-      grassMat
-    );
-    grass.position.x = side * (ROAD_W / 2 + 3);
-    g.add(grass);
+  [-1,1].forEach(s => {
+    const gr = new THREE.Mesh(new THREE.BoxGeometry(7, 0.1, SEG_LEN), roadMats.grass);
+    gr.position.x = s * (CFG.roadWidth / 2 + 3.5);
+    g.add(gr);
   });
 
-  // Stiplet midtlinje
-  for (let i = -ROAD_SEG_LEN / 2 + 2; i < ROAD_SEG_LEN / 2; i += 4) {
-    const mark = new THREE.Mesh(
-      new THREE.BoxGeometry(0.15, 0.12, 1.5),
-      markMat
-    );
-    mark.position.z = i;
-    g.add(mark);
+  for (let dz = -SEG_LEN/2 + 2; dz < SEG_LEN/2; dz += 4.5) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 1.6), roadMats.line);
+    m.position.z = dz;
+    g.add(m);
   }
-
-  g.position.set(0, 0, z);
   scene.add(g);
   return g;
 }
 
-// Initialiser vei-segmenter
-for (let i = 0; i < NUM_ROAD_SEGS; i++) {
-  roadSegs.push(makeRoadSegment(-i * ROAD_SEG_LEN));
+const roadSegs = [];
+for (let i = 0; i < NUM_SEGS; i++) {
+  const s = makeRoadSeg();
+  s.position.z = -i * SEG_LEN;
+  roadSegs.push(s);
 }
 
-// ── Crowd-system ───────────────────────────────────────────
-const crowdFigures = [];   // { mesh, offset }
-const crowdGroup = new THREE.Group();
-scene.add(crowdGroup);
-
-function rebuildCrowd() {
-  // Fjern gamle
-  while (crowdGroup.children.length) {
-    crowdGroup.remove(crowdGroup.children[0]);
-  }
-  crowdFigures.length = 0;
-
-  const n = Math.min(crowd, 80); // Maks 80 synlige figurer (ytelse)
-  for (let i = 0; i < n; i++) {
-    const fig = makeFigure(false);
-    // Spiral-formasjon
-    const angle = i * 2.399963; // gylden vinkel
-    const r = Math.sqrt(i / n) * CFG.crowdSpread;
-    const ox = Math.cos(angle) * r;
-    const oz = Math.sin(angle) * r * 0.6;
-    fig.position.set(ox, 0, oz);
-    crowdGroup.add(fig);
-    crowdFigures.push({ mesh: fig, ox, oz });
-  }
-}
-
-// ── Porter ────────────────────────────────────────────────
-const gates = []; // { group, op, value, lane (0|1|2), z }
-
-const GATE_GOOD_MAT  = new THREE.MeshLambertMaterial({ color: 0x4caf50, transparent: true, opacity: 0.85 });
-const GATE_GREAT_MAT = new THREE.MeshLambertMaterial({ color: 0x2196f3, transparent: true, opacity: 0.85 });
-const GATE_BAD_MAT   = new THREE.MeshLambertMaterial({ color: 0xf44336, transparent: true, opacity: 0.85 });
-
-function applyOp(n, op, val) {
-  if (op === '+') return n + val;
-  if (op === '-') return Math.max(CFG.minCrowd, n - val);
-  if (op === '*') return Math.min(CFG.maxCrowd, n * val);
-  if (op === '/') return Math.max(CFG.minCrowd, Math.floor(n / val));
-  return n;
-}
-
-function opLabel(op, val) {
-  if (op === '+') return `+${val}`;
-  if (op === '-') return `-${val}`;
-  if (op === '*') return `×${val}`;
-  if (op === '/') return `÷${val}`;
-  return `${val}`;
-}
-
-function isBeneficial(n, op, val) {
-  return applyOp(n, op, val) > n;
-}
-
-// Enkel 2D-tekst via CanvasTexture
-function makeLabel(text, color = '#fff') {
-  const size = 128;
-  const c = document.createElement('canvas');
-  c.width = size; c.height = size / 2;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = color;
-  ctx.font = `bold ${size * 0.36}px Arial`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, size / 2, size / 4);
-  return new THREE.CanvasTexture(c);
-}
-
-function spawnGatePair(z) {
-  // Velg to av tre felt – venstre og høyre gate
-  const lane1 = Math.floor(Math.random() * 3);
-  let lane2 = (lane1 + 1 + Math.floor(Math.random() * 2)) % 3;
-
-  const ops = [
-    { op: '+', val: Math.floor(3 + wave * 1.5) },
-    { op: '-', val: Math.floor(2 + wave * 1.2) },
-    { op: '*', val: [2, 3][Math.floor(Math.random() * 2)] },
-    { op: '/', val: 2 },
-    { op: '+', val: Math.floor(5 + wave * 2) },
-  ];
-
-  const pick1 = ops[Math.floor(Math.random() * ops.length)];
-  const pick2 = ops[Math.floor(Math.random() * ops.length)];
-
-  [
-    { lane: lane1, pick: pick1 },
-    { lane: lane2, pick: pick2 },
-  ].forEach(({ lane, pick }) => {
-    const { op, val } = pick;
-    const good = isBeneficial(crowd, op, val);
-    // Multiplisjon er alltid "great" (blå), god → grønn, dårlig → rød
-    const mat = (op === '*') ? GATE_GREAT_MAT : (good ? GATE_GOOD_MAT : GATE_BAD_MAT);
-    const labelColor = (op === '*') ? '#e3f2fd' : (good ? '#e8f5e9' : '#ffebee');
-
-    const xPos = (lane - 1) * CFG.laneWidth;
-
-    const g = new THREE.Group();
-
-    const face = new THREE.Mesh(gateGeo, mat);
-    face.position.y = 1.2;
-    face.castShadow = true;
-    g.add(face);
-
-    // Tekst-label
-    const tex = makeLabel(opLabel(op, val), labelColor);
-    const labelMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.6, 0.8),
-      new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false })
-    );
-    labelMesh.position.y = 1.2;
-    labelMesh.position.z = 0.12;
-    g.add(labelMesh);
-
-    // Stolper
-    [-0.8, 0.8].forEach(dx => {
-      const post = new THREE.Mesh(postGeo, matPost);
-      post.position.set(dx, 1.4, 0);
-      g.add(post);
-    });
-
-    g.position.set(xPos, 0, z);
-    scene.add(g);
-    gates.push({ group: g, op, val, lane, z, passed: false });
+// Flytt alle veisegmenter fremover; recycle de som passerer kamera
+function updateRoad(dz) {
+  roadSegs.forEach(seg => {
+    seg.position.z += dz;
+    if (seg.position.z > SEG_LEN * 1.5) {
+      seg.position.z -= NUM_SEGS * SEG_LEN;
+    }
   });
 }
 
-// ── Fiender ───────────────────────────────────────────────
-const enemyWaves = []; // { group, figures, hp, maxHp, z, label }
-const hpBarCanvas = {};
+// ── Crowd-gruppe ───────────────────────────────────────────
+const crowdGroup  = new THREE.Group();
+crowdGroup.position.z = 0;
+scene.add(crowdGroup);
+const crowdFigs = []; // { mesh }
 
-function makeHPLabel(hp, maxHp) {
-  const w = 256, h = 48;
+function rebuildCrowd() {
+  while (crowdGroup.children.length) crowdGroup.remove(crowdGroup.children[0]);
+  crowdFigs.length = 0;
+
+  const n = Math.min(crowdSize, 80);
+  for (let i = 0; i < n; i++) {
+    const fig = makeFigure(false);
+    const angle = i * 2.39996;
+    const r     = (i === 0 ? 0 : Math.sqrt(i / n) * CFG.crowdSpread);
+    fig.position.set(Math.cos(angle) * r, 0, Math.sin(angle) * r * 0.55);
+    crowdGroup.add(fig);
+    crowdFigs.push({ mesh: fig });
+  }
+}
+
+// ── Canvas-tekst til Three.js ──────────────────────────────
+function textTexture(text, bgColor, textColor) {
+  const W = 256, H = 96;
   const c = document.createElement('canvas');
-  c.width = w; c.height = h;
+  c.width = W; c.height = H;
   const ctx = c.getContext('2d');
 
-  // Bakgrunn
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  roundRect(ctx, 0, 0, w, h, 8);
+  // Bakgrunn med rundet hjørne
+  ctx.fillStyle = bgColor;
+  ctx.beginPath();
+  ctx.roundRect(2, 2, W-4, H-4, 14);
   ctx.fill();
 
-  // HP-bar
-  const pct = Math.max(0, hp / maxHp);
-  const col = pct > 0.5 ? '#4caf50' : pct > 0.25 ? '#ff9800' : '#f44336';
-  ctx.fillStyle = col;
-  roundRect(ctx, 4, 4, (w - 8) * pct, h - 8, 5);
-  ctx.fill();
-
-  // Tekst
-  ctx.fillStyle = '#fff';
-  ctx.font = `bold ${h * 0.55}px Arial`;
+  ctx.fillStyle = textColor;
+  ctx.font = `bold ${H * 0.54}px Arial`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${hp}`, w / 2, h / 2);
-
+  ctx.fillText(text, W/2, H/2);
   return new THREE.CanvasTexture(c);
 }
 
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.lineTo(x + w - r, y);
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-  ctx.lineTo(x + w, y + h - r);
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  ctx.lineTo(x + r, y + h);
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-  ctx.lineTo(x, y + r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.closePath();
+// ── Porter ─────────────────────────────────────────────────
+const gates = []; // { mesh3d, op, val, lane, passed }
+
+function opResult(n, op, val) {
+  if (op==='+') return Math.min(CFG.maxCrowd, n + val);
+  if (op==='-') return Math.max(CFG.minCrowd, n - val);
+  if (op==='*') return Math.min(CFG.maxCrowd, n * val);
+  if (op==='/') return Math.max(CFG.minCrowd, Math.floor(n / val));
+  return n;
 }
 
-function spawnEnemyWave(z, waveNum) {
-  const isBoss = (waveNum % CFG.bossEveryN === 0);
-  const baseHP = Math.round(CFG.baseEnemyHP * Math.pow(CFG.enemyHPScale, waveNum));
-  const hp = isBoss ? baseHP * CFG.bossMultiplier : baseHP;
+function opStr(op, val) {
+  const sym = { '+':'+', '-':'−', '*':'×', '/':'÷' };
+  return `${sym[op]}${val}`;
+}
 
-  const count = isBoss ? 20 : Math.min(8 + waveNum * 2, 30);
-  const g = new THREE.Group();
+function spawnGates(atZ) {
+  // Velg to ulike felt av 3
+  const l1 = Math.floor(Math.random() * 3);
+  const l2 = (l1 + 1 + Math.floor(Math.random() * 2)) % 3;
+
+  const makeOp = () => {
+    const r = Math.random();
+    if (r < 0.28) return { op:'+', val: Math.max(3, Math.floor(3 + wave*1.8)) };
+    if (r < 0.48) return { op:'-', val: Math.max(2, Math.floor(2 + wave*1.3)) };
+    if (r < 0.66) return { op:'*', val: Math.random()<0.6 ? 2 : 3 };
+    if (r < 0.80) return { op:'/', val: 2 };
+    return { op:'+', val: Math.max(5, Math.floor(6 + wave*2.2)) };
+  };
+
+  [l1, l2].forEach(lane => {
+    const { op, val } = makeOp();
+    const result  = opResult(crowdSize, op, val);
+    const isGood  = result > crowdSize;
+    const isMult  = (op === '*');
+
+    const bg   = isMult ? '#1565c0' : isGood ? '#2e7d32' : '#c62828';
+    const fg   = '#ffffff';
+
+    const g = new THREE.Group();
+
+    // Portalflate
+    const mat = new THREE.MeshLambertMaterial({
+      color: isMult ? 0x1e88e5 : isGood ? 0x43a047 : 0xe53935,
+      transparent: true, opacity: 0.82
+    });
+    const face = new THREE.Mesh(GEO.gate, mat);
+    face.position.y = 1.25;
+    face.castShadow = true;
+    g.add(face);
+
+    // Tekst-billboard
+    const tex = textTexture(opStr(op,val), bg, fg);
+    const lbl = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.7, 0.64),
+      new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
+    );
+    lbl.position.set(0, 1.5, 0.14);
+    g.add(lbl);
+
+    // Stolper
+    [-0.82, 0.82].forEach(dx => {
+      const p = new THREE.Mesh(GEO.post, new THREE.MeshLambertMaterial({ color: 0x9e9e9e }));
+      p.position.set(dx, 1.5, 0);
+      g.add(p);
+    });
+
+    const xPos = (lane - 1) * CFG.laneWidth;
+    g.position.set(xPos, 0, atZ);
+    scene.add(g);
+
+    gates.push({ group: g, op, val, lane, passed: false, baseZ: atZ });
+  });
+}
+
+// Flytt porter og fjern de som passerer kamera
+function updateGates(dz) {
+  for (let i = gates.length - 1; i >= 0; i--) {
+    const gate = gates[i];
+    gate.group.position.z += dz;
+
+    // Kollisjonsdeteksjon: gate er ved z≈0–4
+    if (!gate.passed && gate.group.position.z > -1 && gate.group.position.z < 5) {
+      const gateCX = (gate.lane - 1) * CFG.laneWidth;
+      if (Math.abs(crowdX - gateCX) < CFG.laneWidth * 0.52) {
+        gate.passed = true;
+        crowdSize   = opResult(crowdSize, gate.op, gate.val);
+        rebuildCrowd();
+        updateHUD();
+        // Visuell puls
+        gate.group.scale.setScalar(1.18);
+        setTimeout(() => gate.group && gate.group.scale.setScalar(1), 180);
+      }
+    }
+
+    // Fjern gate som er bak kamera
+    if (gate.group.position.z > 24) {
+      scene.remove(gate.group);
+      gates.splice(i, 1);
+    }
+  }
+}
+
+// ── Fiender ────────────────────────────────────────────────
+const enemies = []; // { group, hp, maxHp, labelMesh, isBoss }
+
+function hpTexture(hp, maxHp) {
+  const W = 320, H = 56;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.roundRect(0,0,W,H,10); ctx.fill();
+
+  const pct = Math.max(0, hp / maxHp);
+  ctx.fillStyle = pct > 0.5 ? '#43a047' : pct > 0.25 ? '#fb8c00' : '#e53935';
+  ctx.beginPath(); ctx.roundRect(4,4,(W-8)*pct, H-8, 7); ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${H*0.52}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(hp), W/2, H/2);
+  return new THREE.CanvasTexture(c);
+}
+
+function spawnEnemy(atZ, waveNum) {
+  const isBoss = (waveNum % CFG.bossEveryN === 0);
+  const baseHP = Math.round(CFG.baseEnemyHP * Math.pow(CFG.enemyHPScale, waveNum - 1));
+  const hp     = isBoss ? baseHP * CFG.bossMultiplier : baseHP;
+
+  const count = isBoss ? 22 : Math.min(6 + waveNum * 2, 28);
+  const g     = new THREE.Group();
 
   for (let i = 0; i < count; i++) {
-    const fig = makeFigure(true);
-    if (isBoss) {
-      fig.scale.set(1.4, 1.4, 1.4);
-    }
-    const angle = i * 2.399963;
-    const r = Math.sqrt(i / count) * (isBoss ? 2.8 : 2.0);
-    fig.position.set(Math.cos(angle) * r, 0, Math.sin(angle) * r * 0.5);
+    const fig   = makeFigure(true);
+    const scale = isBoss ? 1.45 : 1;
+    fig.scale.setScalar(scale);
+    const angle = i * 2.39996;
+    const r     = (i === 0 ? 0 : Math.sqrt(i / count) * (isBoss ? 3.0 : 2.2));
+    fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
     g.add(fig);
   }
 
-  // HP label (billboard)
-  const tex = makeHPLabel(hp, hp);
-  const labelMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(4, 0.8),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false })
+  // HP-etikett
+  const tex = hpTexture(hp, hp);
+  const lbl = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.5, 0.78),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
   );
-  labelMesh.position.y = isBoss ? 3.5 : 2.5;
-  g.add(labelMesh);
+  lbl.position.y = isBoss ? 4.0 : 2.8;
+  g.add(lbl);
 
   if (isBoss) {
-    // Boss-glow-ring
     const ring = new THREE.Mesh(
-      new THREE.TorusGeometry(2.2, 0.15, 8, 32),
-      new THREE.MeshLambertMaterial({ color: 0xffd700 })
+      new THREE.TorusGeometry(2.5, 0.18, 8, 32),
+      new THREE.MeshLambertMaterial({ color: 0xffd600 })
     );
     ring.rotation.x = Math.PI / 2;
-    ring.position.y = 0.15;
+    ring.position.y = 0.2;
     g.add(ring);
   }
 
-  g.position.set(0, 0, z);
+  g.position.set(0, 0, atZ);
   scene.add(g);
-
-  enemyWaves.push({ group: g, hp, maxHp: hp, z, isBoss, labelMesh, tex, count, figures: g.children.filter(c => c.isGroup) });
+  enemies.push({ group: g, hp, maxHp: hp, labelMesh: lbl, isBoss });
 }
 
-// ── Neste spawn-avstand ────────────────────────────────────
-let nextGateZ    = -CFG.gateSpawnDist;
-let nextEnemyZ   = -CFG.enemySpawnDist;
-let waveCounter  = 0;
+function updateEnemies(dz) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const en = enemies[i];
+    en.group.position.z += dz;
 
-// ── Input ─────────────────────────────────────────────────
-let pointerDown  = false;
-let pointerLastX = 0;
-const keys       = {};
+    // Trigger kamp når fienden når crowd-sonen
+    if (state === 'playing' && en.group.position.z > -2 && en.group.position.z < 6) {
+      triggerBattle(en);
+    }
 
-// Tastatur
+    if (en.group.position.z > 30) {
+      scene.remove(en.group);
+      enemies.splice(i, 1);
+    }
+  }
+}
+
+// ── Kamp ───────────────────────────────────────────────────
+let battleEnemy  = null;
+let battleTimer  = 0;
+
+function triggerBattle(en) {
+  state       = 'battle';
+  battleEnemy = en;
+  battleTimer = 0;
+}
+
+function resolveBattle(dt) {
+  if (!battleEnemy) return;
+  battleTimer += dt;
+
+  // Hvert 0.35s: begge sider mister 1 HP (tempo-kamp visuelt)
+  if (battleTimer >= 0.35) {
+    battleTimer = 0;
+
+    crowdSize         = Math.max(0, crowdSize - 1);
+    battleEnemy.hp    = Math.max(0, battleEnemy.hp - 1);
+
+    // Oppdater HP-label
+    const newTex = hpTexture(battleEnemy.hp, battleEnemy.maxHp);
+    battleEnemy.labelMesh.material.map.dispose();
+    battleEnemy.labelMesh.material.map = newTex;
+    battleEnemy.labelMesh.material.needsUpdate = true;
+
+    rebuildCrowd();
+    updateHUD();
+
+    if (crowdSize <= 0) {
+      // Spilleren tapte
+      battleEnemy = null;
+      setTimeout(triggerGameOver, 500);
+      return;
+    }
+
+    if (battleEnemy.hp <= 0) {
+      // Spilleren vant
+      scene.remove(battleEnemy.group);
+      const idx = enemies.indexOf(battleEnemy);
+      if (idx !== -1) enemies.splice(idx, 1);
+      battleEnemy = null;
+
+      wave++;
+      speed += CFG.speedIncrement;
+      updateHUD();
+      state = 'playing';
+
+      if (wave >= CFG.winAtWave) triggerVictory();
+    }
+  }
+}
+
+// ── Spawn-system ───────────────────────────────────────────
+// Vi tracker "spawn cursor" – neste Z-posisjon i verden-koordinater
+// (dvs. avstand foran crowd, i negativ Z-retning fra start).
+// Siden verden beveger seg mot kamera fikser vi det ved å stable
+// nye objekter langt foran (negativt Z) og la dem rulle inn.
+
+// Sporing av tilreist distanse for spawn-triggere
+let travelZ         = 0;
+let lastGateTravel  = 0;
+let lastEnemyTravel = 0;
+
+function checkSpawns(dz) {
+  travelZ += dz;
+
+  // Spawn gate: sett det alltid langt foran (z = -CFG.gateInterval)
+  if (travelZ - lastGateTravel >= CFG.gateInterval) {
+    lastGateTravel += CFG.gateInterval;
+    spawnGates(-CFG.gateInterval);
+  }
+
+  // Spawn fiende
+  if (travelZ - lastEnemyTravel >= CFG.enemyInterval) {
+    lastEnemyTravel += CFG.enemyInterval;
+    spawnEnemy(-CFG.enemyInterval, wave + 1);
+  }
+}
+
+// ── Input ──────────────────────────────────────────────────
+const keys = {};
 window.addEventListener('keydown', e => { keys[e.key] = true; });
 window.addEventListener('keyup',   e => { keys[e.key] = false; });
 
-// Peker (touch + mus)
-canvas.addEventListener('pointerdown', e => {
-  pointerDown  = true;
-  pointerLastX = e.clientX;
-});
+let ptrDown = false, ptrPrevX = 0;
+canvas.addEventListener('pointerdown', e => { ptrDown = true; ptrPrevX = e.clientX; });
 window.addEventListener('pointermove', e => {
-  if (!pointerDown || state !== 'playing') return;
-  const dx = e.clientX - pointerLastX;
-  pointerLastX = e.clientX;
-  targetX += dx * CFG.swipeSensitivity * (ROAD_W / window.innerWidth) * ROAD_W;
+  if (!ptrDown || state !== 'playing') return;
+  const dx = e.clientX - ptrPrevX;
+  ptrPrevX = e.clientX;
+  // Skaler slik at swipe over halve skjermen = bevegelse tvers over veien
+  const pxPerUnit = window.innerWidth / CFG.roadWidth;
+  targetX  = clampX(targetX + dx / pxPerUnit * 2.5);
 });
-window.addEventListener('pointerup',   () => { pointerDown = false; });
+window.addEventListener('pointerup', () => { ptrDown = false; });
 
-// Klampe crowd til veien
-function clampCrowdX() {
-  const limit = ROAD_W / 2 - 0.8;
-  targetX = Math.max(-limit, Math.min(limit, targetX));
+function clampX(x) {
+  return Math.max(-(CFG.roadWidth/2 - 1.0), Math.min(CFG.roadWidth/2 - 1.0, x));
 }
 
-// ── UI-referanser ──────────────────────────────────────────
-const uiCount     = document.getElementById('crowd-count');
-const uiScore     = document.getElementById('score-display');
-const startScreen = document.getElementById('start-screen');
-const gameoverScr = document.getElementById('gameover-screen');
-const victoryScr  = document.getElementById('victory-screen');
-const finalScore  = document.getElementById('final-score');
-const highScoreEl = document.getElementById('high-score-display');
-const victoryScoreEl = document.getElementById('victory-score');
+// ── HUD og UI ──────────────────────────────────────────────
+const elCount  = document.getElementById('crowd-count');
+const elScore  = document.getElementById('score-display');
+const elStart  = document.getElementById('start-screen');
+const elDead   = document.getElementById('gameover-screen');
+const elWin    = document.getElementById('victory-screen');
+
+function updateHUD() {
+  elCount.textContent = crowdSize;
+  elScore.textContent = `Bølge: ${wave}`;
+}
 
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
 document.getElementById('victory-restart-btn').addEventListener('click', startGame);
 
-// ── Starte/restarte spillet ────────────────────────────────
-function startGame() {
-  // Rens scene
-  gates.forEach(g => scene.remove(g.group));
-  gates.length = 0;
-  enemyWaves.forEach(e => scene.remove(e.group));
-  enemyWaves.length = 0;
-
-  crowd   = CFG.startCrowd;
-  wave    = 0;
-  speed   = CFG.runSpeed;
-  totalDist = 0;
-  crowdX  = 0;
-  targetX = 0;
-
-  nextGateZ  = -CFG.gateSpawnDist;
-  nextEnemyZ = -CFG.enemySpawnDist;
-  waveCounter = 0;
-
-  rebuildCrowd();
-
-  startScreen.classList.add('hidden');
-  gameoverScr.classList.add('hidden');
-  victoryScr.classList.add('hidden');
-
-  state = 'playing';
-  updateHUD();
-}
-
-function gameOver() {
+function triggerGameOver() {
   state = 'dead';
   if (wave > highScore) highScore = wave;
-  finalScore.textContent   = `Du klarte bølge ${wave}`;
-  highScoreEl.textContent  = `Rekord: ${highScore} bølger`;
-  gameoverScr.classList.remove('hidden');
+  document.getElementById('final-score').textContent      = `Du klarte bølge ${wave}`;
+  document.getElementById('high-score-display').textContent = `Rekord: ${highScore} bølger`;
+  elDead.classList.remove('hidden');
 }
 
-function victory() {
+function triggerVictory() {
   state = 'victory';
   if (wave > highScore) highScore = wave;
-  victoryScoreEl.textContent = `${wave} bølger klart! Mengde: ${crowd}`;
-  victoryScr.classList.remove('hidden');
+  document.getElementById('victory-score').textContent = `${wave} bølger klart! Mengde igjen: ${crowdSize}`;
+  elWin.classList.remove('hidden');
 }
 
-function updateHUD() {
-  uiCount.textContent = crowd;
-  uiScore.textContent = `Bølge: ${wave}`;
+// ── Starte / restarte ──────────────────────────────────────
+function startGame() {
+  // Fjern gamle objekter fra scenen
+  gates.forEach(g => scene.remove(g.group));   gates.length = 0;
+  enemies.forEach(e => scene.remove(e.group)); enemies.length = 0;
+
+  crowdSize  = CFG.startCrowd;
+  wave       = 0;
+  speed      = CFG.runSpeed;
+  crowdX     = 0;
+  targetX    = 0;
+  travelZ         = 0;
+  lastGateTravel  = 0;
+  lastEnemyTravel = 0;
+
+  // Reset vei-segmenter
+  roadSegs.forEach((s, i) => { s.position.set(0, 0, -i * SEG_LEN); });
+
+  // Forhåndsspawn første gate og fiende
+  spawnGates(-CFG.gateInterval);
+  spawnEnemy(-CFG.enemyInterval, 1);
+
+  battleEnemy = null;
+  battleTimer = 0;
+
+  rebuildCrowd();
+  updateHUD();
+
+  elStart.classList.add('hidden');
+  elDead.classList.add('hidden');
+  elWin.classList.add('hidden');
+
+  state = 'playing';
 }
 
-// ── Kamp-logikk ────────────────────────────────────────────
-let battleAnim = null; // null | { enemy, timer, done }
-
-function startBattle(enemy) {
-  state = 'battle';
-  battleAnim = { enemy, timer: 0, done: false };
-}
-
-function resolveBattle(dt) {
-  if (!battleAnim) return;
-  battleAnim.timer += dt;
-
-  const enemy = battleAnim.enemy;
-
-  // Simuler kamp hvert 0.4s
-  if (battleAnim.timer > 0.4 && !battleAnim.done) {
-    battleAnim.timer = 0;
-
-    const dmg = Math.min(crowd, enemy.hp);
-    const edm = Math.min(enemy.hp, crowd);
-
-    crowd      = Math.max(0, crowd - edm);
-    enemy.hp   = Math.max(0, enemy.hp - dmg);
-
-    // Oppdater HP-label
-    const newTex = makeHPLabel(enemy.hp, enemy.maxHp);
-    enemy.labelMesh.material.map.dispose();
-    enemy.labelMesh.material.map = newTex;
-    enemy.labelMesh.material.needsUpdate = true;
-
-    rebuildCrowd();
-    updateHUD();
-
-    if (crowd <= 0) {
-      battleAnim.done = true;
-      setTimeout(() => gameOver(), 800);
-      return;
-    }
-
-    if (enemy.hp <= 0) {
-      // Fjern fiende
-      scene.remove(enemy.group);
-      const idx = enemyWaves.indexOf(enemy);
-      if (idx !== -1) enemyWaves.splice(idx, 1);
-
-      waveCounter++;
-      wave++;
-      speed += CFG.speedIncrement;
-      updateHUD();
-
-      battleAnim = null;
-      state = 'playing';
-
-      if (waveCounter >= 20) {
-        victory();
-      }
-    }
-  }
-}
-
-// ── Animasjons-timer ───────────────────────────────────────
+// ── Bein-animasjon ─────────────────────────────────────────
 let legPhase = 0;
-
 function animateCrowd(dt) {
-  legPhase += dt * 8;
-  const swing = Math.sin(legPhase) * 0.4;
-  crowdFigures.forEach((f, i) => {
-    if (f.mesh.userData.legL) {
-      f.mesh.userData.legL.rotation.x =  swing * (i % 2 === 0 ? 1 : -1);
-      f.mesh.userData.legR.rotation.x = -swing * (i % 2 === 0 ? 1 : -1);
-    }
-    // Litt bounce
-    f.mesh.position.y = Math.abs(Math.sin(legPhase + i)) * 0.08;
+  legPhase += dt * 9;
+  crowdFigs.forEach((f, i) => {
+    const { legL, legR } = f.mesh.userData;
+    if (!legL) return;
+    const sw = Math.sin(legPhase + i * 0.4) * 0.38;
+    legL.rotation.x =  sw;
+    legR.rotation.x = -sw;
+    f.mesh.position.y = Math.abs(Math.sin(legPhase + i)) * 0.07;
   });
 }
 
-// ── Hoved game-loop ────────────────────────────────────────
-let lastTime = null;
+// ── Game loop ──────────────────────────────────────────────
+let lastTS = null;
 
-function gameLoop(ts) {
-  requestAnimationFrame(gameLoop);
+function loop(ts) {
+  requestAnimationFrame(loop);
 
-  const dt = lastTime ? Math.min((ts - lastTime) / 1000, 0.05) : 0.016;
-  lastTime = ts;
+  const dt = lastTS ? Math.min((ts - lastTS) / 1000, 0.05) : 0.016;
+  lastTS   = ts;
 
   if (state === 'playing') {
-    // Input
-    if (keys['ArrowLeft']  || keys['a'] || keys['A']) targetX -= CFG.keyMoveSpeed * dt;
-    if (keys['ArrowRight'] || keys['d'] || keys['D']) targetX += CFG.keyMoveSpeed * dt;
-    clampCrowdX();
+    // Tastatur-input
+    if (keys['ArrowLeft']  || keys['a'] || keys['A']) targetX = clampX(targetX - CFG.keySpeed * dt);
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) targetX = clampX(targetX + CFG.keySpeed * dt);
 
-    // Smooth bevegelse
-    crowdX += (targetX - crowdX) * Math.min(1, dt * 12);
+    // Smooth sideveis bevegelse
+    crowdX += (targetX - crowdX) * Math.min(1, dt * 14);
+    crowdGroup.position.x = crowdX;
 
-    // Flytt fremover
-    totalDist += speed * dt;
+    // Beregn hvor mye verden ruller denne framen
+    const dz = speed * dt;
 
-    // Vei-recycling
-    roadSegs.forEach(seg => {
-      if (seg.position.z > totalDist + ROAD_SEG_LEN) {
-        seg.position.z -= NUM_ROAD_SEGS * ROAD_SEG_LEN;
-      }
-    });
-
-    // Spawn porter
-    if (-totalDist < nextGateZ + 10) {
-      spawnGatePair(nextGateZ);
-      nextGateZ -= CFG.gateSpawnDist;
-    }
-
-    // Spawn fiende
-    if (-totalDist < nextEnemyZ + 10) {
-      spawnEnemyWave(nextEnemyZ, waveCounter);
-      nextEnemyZ -= CFG.enemySpawnDist;
-    }
-
-    // Sjekk gate-kollisjon
-    const crowdWorldZ = -totalDist;
-    gates.forEach(gate => {
-      if (gate.passed) return;
-      if (crowdWorldZ < gate.z + 2 && crowdWorldZ > gate.z - 3) {
-        // Sjekk X-overlap
-        const gateCenterX = (gate.lane - 1) * CFG.laneWidth;
-        if (Math.abs(crowdX - gateCenterX) < CFG.laneWidth * 0.55) {
-          gate.passed = true;
-          crowd = Math.max(CFG.minCrowd, Math.min(CFG.maxCrowd,
-                  applyOp(crowd, gate.op, gate.val)));
-          rebuildCrowd();
-          updateHUD();
-          // Blink-effekt
-          gate.group.scale.set(1.15, 1.15, 1.15);
-          setTimeout(() => { if (gate.group) gate.group.scale.set(1, 1, 1); }, 200);
-        }
-      }
-    });
-
-    // Sjekk fiende-kollisjon
-    enemyWaves.forEach(enemy => {
-      if (crowdWorldZ < enemy.z + 3 && crowdWorldZ > enemy.z - 3) {
-        startBattle(enemy);
-      }
-    });
-
-    // Fjern passerte porter
-    for (let i = gates.length - 1; i >= 0; i--) {
-      if (gates[i].z > crowdWorldZ + 10) {
-        scene.remove(gates[i].group);
-        gates.splice(i, 1);
-      }
-    }
-
-    // Plasser crowd-gruppen
-    crowdGroup.position.set(crowdX, 0, crowdWorldZ);
-
-    // Kamera følger crowd
-    camera.position.set(crowdX * 0.3, 14, crowdWorldZ + 16);
-    camera.lookAt(crowdX * 0.3, 0, crowdWorldZ - 10);
-
-    // Flytt porter og fiender relativt (de er i world-space, vei recycler)
-    // (De er allerede i scene-koordinater og beveger seg ikke – crowd-gruppen beveger seg)
-
+    updateRoad(dz);
+    updateGates(dz);
+    updateEnemies(dz);
+    checkSpawns(dz);
     animateCrowd(dt);
   }
 
   if (state === 'battle') {
     resolveBattle(dt);
     animateCrowd(dt);
+    // Sakte ned verden litt under kamp
+    const dz = speed * dt * 0.3;
+    updateRoad(dz);
   }
 
   renderer.render(scene, camera);
 }
 
-// ── Start animasjonssløyfe ─────────────────────────────────
-requestAnimationFrame(gameLoop);
+requestAnimationFrame(loop);
