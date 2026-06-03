@@ -16,8 +16,8 @@ const CFG = {
   laneWidth:      2.6,
   crowdSpread:    3.2,   // mye mer avstand mellom spillerfigurer
   soldierScale:   0.62,  // global skala for soldater (ned fra ~1.0)
-  gateInterval:   22,
-  enemyInterval:  50,
+  gateInterval:   45,
+  enemyInterval:  70,
   bossEveryN:      5,
   baseEnemyHP:    20,    // mye lavere start-HP
   enemyHPScale:   1.4,   // saktere HP-vekst
@@ -86,8 +86,8 @@ function getLevelParams(lvl) {
     enemyHP:         Math.round((10 + n * 5) * (1 + rnd())),
     enemyCount:      Math.min(3 + Math.floor(n * 0.8), CFG.maxEnemyCount),
     bossHP:          Math.round((40 + n * 22) * (1 + rnd())),
-    gateInterval:    Math.max(14, 22 - n * 0.6),
-    enemyInterval:   Math.max(35, 50 - n * 1.2),
+    gateInterval:    Math.max(30, 45 - n * 0.8),
+    enemyInterval:   Math.max(50, 70 - n * 1.5),
   };
 }
 
@@ -540,9 +540,7 @@ function opStr(op, val) {
   return ({ '+':'+', '-':'−', '*':'×', '/':'÷' }[op]) + val;
 }
 
-// ── Porter – én på hver SIDE av veien ─────────────────────
-// Grønn (høyre): starter positivt og stiger ved treff
-// Rød (venstre): starter negativt og stiger mot positivt ved treff
+// ── Porter + Tank – tank på random X, porter ved siden ────
 function gateStartVal(isGood) {
   const base = Math.max(3, 3 + Math.floor(level * 1.5));
   return isGood ? base : -base;
@@ -557,19 +555,25 @@ function refreshGateLabel(gate) {
   gate.labelMesh.material.map.dispose();
   gate.labelMesh.material.map = newTex;
   gate.labelMesh.material.needsUpdate = true;
-  // Oppdater flate-farge
   gate.faceMesh.material.color.setHex(good ? 0x43a047 : 0xe53935);
 }
 
 function spawnGates(atZ) {
-  // Venstre = rød (negativ), høyre = grønn (positiv) – tilfeldig side-bytte
+  // Tank spawner på random posisjon: venstre, midten eller høyre
+  const tankPositions = [-2.8, 0, 2.8];
+  const tankX = tankPositions[Math.floor(Math.random() * tankPositions.length)];
+
+  // Porter på hver side av tanken (2.6 enheter til siden)
+  const gateOffset = 2.6;
   const greenRight = Math.random() < 0.5;
   const sides = [
-    { xPos: -(CFG.roadWidth/2 - 1.2), isGood: !greenRight },
-    { xPos:  (CFG.roadWidth/2 - 1.2), isGood:  greenRight },
+    { xPos: tankX - gateOffset, isGood: !greenRight },
+    { xPos: tankX + gateOffset, isGood:  greenRight },
   ];
 
   sides.forEach(({ xPos, isGood }) => {
+    // Klamp porter innenfor veien
+    const clampedX = Math.max(-(CFG.roadWidth/2 - 0.8), Math.min(CFG.roadWidth/2 - 0.8, xPos));
     const startVal = gateStartVal(isGood);
     const bg       = isGood ? '#2e7d32' : '#c62828';
     const text     = isGood ? `+${startVal}` : `${startVal}`;
@@ -597,17 +601,17 @@ function spawnGates(atZ) {
       g.add(p);
     });
 
-    g.position.set(xPos, 0, atZ);
+    g.position.set(clampedX, 0, atZ);
     scene.add(g);
     gates.push({
       group: g, faceMesh: face, labelMesh: lbl,
-      currentVal: startVal, isGood, xPos, passed: false
+      currentVal: startVal, isGood, xPos: clampedX, passed: false
     });
   });
 
-  // Spawn kjøretøy i midten samme Z
-  const vhp = Math.round((15 + level * 10) * (0.85 + Math.random()*0.3));
-  spawnVehicle(atZ, vhp);
+  // Tank spawner lengre unna og er hardere
+  const vhp = Math.round((60 + level * 25) * (0.85 + Math.random()*0.3));
+  spawnVehicle(atZ, vhp, tankX);
 }
 
 function updateGates(dz) {
@@ -724,7 +728,7 @@ function createVehicle() {
   return g;
 }
 
-function spawnVehicle(atZ, hp) {
+function spawnVehicle(atZ, hp, xPos=0) {
   const g  = new THREE.Group();
   const vg = createVehicle();
   g.add(vg);
@@ -737,7 +741,7 @@ function spawnVehicle(atZ, hp) {
   lbl.position.y = 2.6;
   g.add(lbl);
 
-  g.position.set(0, 0, atZ);
+  g.position.set(xPos, 0, atZ);
   scene.add(g);
   vehicles.push({ group:g, hp, maxHp:hp, labelMesh:lbl, alive:true });
 }
@@ -1189,20 +1193,18 @@ function checkSpawns(dz) {
 
   if (travelZ - lastGateTravel >= lp.gateInterval) {
     lastGateTravel += lp.gateInterval;
-    spawnGates(-CFG.gateInterval);
+    spawnGates(-80);
   }
 
   if (travelZ - lastEnemyTravel >= lp.enemyInterval) {
     lastEnemyTravel += lp.enemyInterval;
 
     if (!bossSpawnedThisLevel && wavesSpawnedInLevel >= lp.wavesBeforeBoss) {
-      // Spawn boss for dette levelet
       bossSpawnedThisLevel = true;
-      spawnBoss(-CFG.enemyInterval, lp.bossHP);
+      spawnBoss(-90, lp.bossHP);
     } else if (!bossSpawnedThisLevel) {
-      // Spawn vanlig fiendebølge
       wavesSpawnedInLevel++;
-      spawnEnemy(-CFG.enemyInterval, lp.enemyHP, lp.enemyCount);
+      spawnEnemy(-90, lp.enemyHP, lp.enemyCount);
     }
   }
 }
@@ -1240,7 +1242,6 @@ function clampX(x) {
 
 // ── HUD ────────────────────────────────────────────────────
 function updateHUD() {
-  document.getElementById('crowd-count').textContent = crowdSize;
   document.getElementById('level-label').textContent = `Level ${level}`;
 
   // Progress: bølger ferdig / totalt (bølger + boss)
@@ -1280,8 +1281,8 @@ function startGame() {
   updateHUD();
 
   // Forhåndsspawn første gate og første fiendebølge
-  spawnGates(-CFG.gateInterval);
-  spawnEnemy(-CFG.enemyInterval, levelParams.enemyHP, levelParams.enemyCount);
+  spawnGates(-80);
+  spawnEnemy(-90, levelParams.enemyHP, levelParams.enemyCount);
   wavesSpawnedInLevel = 1;
 
   ['start-screen','gameover-screen','victory-screen'].forEach(id =>

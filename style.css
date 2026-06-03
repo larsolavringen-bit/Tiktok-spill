@@ -34,15 +34,6 @@ body {
   gap: 6px;
 }
 
-#crowd-count {
-  font-size: 64px;
-  font-weight: 900;
-  color: #fff;
-  text-shadow: 0 0 20px rgba(255,200,0,0.8), 0 3px 6px rgba(0,0,0,0.6);
-  line-height: 1;
-  letter-spacing: -2px;
-}
-
 #level-label {
   font-size: 15px;
   font-weight: bold;
