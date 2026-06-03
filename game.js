@@ -636,8 +636,9 @@ function updateGates(dz) {
   }
 }
 
-// ── Kjøretøy (militær jeep i midten) ──────────────────────
+// ── Kjøretøy (fiende-stridsvogn i midten) ─────────────────
 const vehicles = [];
+const VEHICLE_SPEED = 3.5; // kjører mot spilleren
 
 function createVehicle() {
   const g = new THREE.Group();
@@ -649,27 +650,77 @@ function createVehicle() {
     return m;
   };
 
-  // Karosseri
-  g.add(mk(new THREE.BoxGeometry(2.4, 0.7, 4.4), 0xb71c1c, 0, 0.75, 0));
-  // Tak/kabin
-  g.add(mk(new THREE.BoxGeometry(1.8, 0.5, 1.8), 0x8b1a1a, 0, 1.25, 0.3));
-  // Panserplater
-  g.add(mk(new THREE.BoxGeometry(2.5, 0.12, 4.5), 0x7a1515, 0, 0.40, 0));
-  // Skull-emblem foran
-  g.add(mk(new THREE.BoxGeometry(0.5, 0.4, 0.05), 0x1a1a1a, 0, 0.75, -2.25));
-  g.add(mk(new THREE.BoxGeometry(0.3, 0.24, 0.05), 0xffffff, 0, 0.75, -2.28)); // hvit skull
-  // Frontlykter
-  [-0.7, 0.7].forEach(x => g.add(mk(new THREE.BoxGeometry(0.3,0.18,0.08), 0xffee58, x, 0.72, -2.26)));
-  // Kanon på taket
-  g.add(mk(new THREE.CylinderGeometry(0.12,0.14,0.5,8), 0x222222, 0.4, 1.65, 0.2));
-  g.add(mk(new THREE.CylinderGeometry(0.06,0.06,0.8,6), 0x111111, 0.4, 1.65, -0.55, Math.PI/2,0,0));
-  // Hjul (4 stk)
-  [[-1.3,0,-1.4],[1.3,0,-1.4],[-1.3,0,1.4],[1.3,0,1.4]].forEach(([x,y,z]) => {
-    const w = mk(new THREE.CylinderGeometry(0.52,0.52,0.32,10), 0x1a1a1a, x,0.42+y,z, 0,0,Math.PI/2);
-    g.add(w);
-    // Felg
-    g.add(mk(new THREE.CylinderGeometry(0.28,0.28,0.34,8), 0x444444, x,0.42+y,z, 0,0,Math.PI/2));
+  // ── Belte-understell (brede belter på sidene) ─────────────
+  [-1.4, 1.4].forEach(sx => {
+    // Belteramme
+    g.add(mk(new THREE.BoxGeometry(0.52, 0.55, 4.2), 0x1a1a1a, sx, 0.42, 0));
+    // Belte-mønster (tverrstolper)
+    for (let bz = -1.8; bz <= 1.8; bz += 0.36) {
+      g.add(mk(new THREE.BoxGeometry(0.56, 0.10, 0.10), 0x2a2a2a, sx, 0.72, bz));
+    }
+    // Belte-hjul (4 per side)
+    [-1.4, -0.47, 0.47, 1.4].forEach(wz => {
+      g.add(mk(new THREE.CylinderGeometry(0.28,0.28,0.56,10), 0x1a1a1a, sx, 0.28, wz, 0,0,Math.PI/2));
+      g.add(mk(new THREE.CylinderGeometry(0.16,0.16,0.58,8),  0x333333, sx, 0.28, wz, 0,0,Math.PI/2));
+    });
+    // Drive-sprocket (back)
+    g.add(mk(new THREE.CylinderGeometry(0.32,0.32,0.54,8), 0x222222, sx, 0.32, 1.9, 0,0,Math.PI/2));
   });
+
+  // ── Vogn-kropp (hull) ─────────────────────────────────────
+  g.add(mk(new THREE.BoxGeometry(2.60, 0.62, 4.0), 0xb71c1c, 0, 0.96, 0));
+  // Skråpanser foran
+  g.add(mk(new THREE.BoxGeometry(2.62, 0.50, 0.5), 0xb71c1c, 0, 0.78, -2.1, -0.45,0,0));
+  // Skråpanser bak
+  g.add(mk(new THREE.BoxGeometry(2.62, 0.40, 0.4), 0x9b1818, 0, 0.85,  2.0,  0.35,0,0));
+  // Side-panserplater
+  [-1.35, 1.35].forEach(sx => {
+    g.add(mk(new THREE.BoxGeometry(0.12, 0.34, 3.6), 0x9e1c1c, sx, 1.05, 0));
+  });
+  // Detalj-riller på hull
+  for (let dz = -1.5; dz <= 1.5; dz += 1.0) {
+    g.add(mk(new THREE.BoxGeometry(2.64, 0.06, 0.08), 0x8a1515, 0, 1.26, dz));
+  }
+
+  // ── Skull-emblem foran ────────────────────────────────────
+  g.add(mk(new THREE.BoxGeometry(0.72, 0.60, 0.06), 0x111111,  0, 0.90, -2.05));
+  g.add(mk(new THREE.BoxGeometry(0.46, 0.38, 0.06), 0xffffff,  0, 0.92, -2.08)); // hvit skull
+  g.add(mk(new THREE.BoxGeometry(0.20, 0.10, 0.06), 0x111111,  0, 0.82, -2.08)); // tenner
+
+  // ── Frontlykter ───────────────────────────────────────────
+  [-0.80, 0.80].forEach(x => {
+    g.add(mk(new THREE.BoxGeometry(0.38, 0.22, 0.10), 0xffee88, x, 0.85, -2.06));
+    g.add(mk(new THREE.BoxGeometry(0.28, 0.14, 0.06), 0xffffff, x, 0.85, -2.09));
+  });
+
+  // ── Tårn (turret) ─────────────────────────────────────────
+  const turret = new THREE.Group();
+  turret.position.set(0, 1.28, 0.3);
+  // Tårn-kropp
+  turret.add(mk(new THREE.BoxGeometry(2.0, 0.70, 2.2), 0xc62020));
+  // Tårn-front (skrå)
+  turret.add(mk(new THREE.BoxGeometry(2.02, 0.60, 0.5), 0xc62020, 0, -0.04, -1.2, -0.25,0,0));
+  // Tårn-detaljer
+  turret.add(mk(new THREE.BoxGeometry(2.04, 0.08, 0.10), 0xa01818, 0, 0.32, 0));
+  [-0.80, 0.80].forEach(sx => {
+    turret.add(mk(new THREE.BoxGeometry(0.18, 0.30, 0.30), 0x8a1515, sx, 0.22, 0.6));
+  });
+  // Kommandant-luke
+  turret.add(mk(new THREE.CylinderGeometry(0.32,0.34,0.22,10), 0x8a1515, 0, 0.44, 0.3));
+  turret.add(mk(new THREE.CylinderGeometry(0.30,0.30,0.08,10), 0x6a1010, 0, 0.56, 0.3));
+  // Maskingevær på toppen
+  turret.add(mk(new THREE.CylinderGeometry(0.055,0.055,0.80,6), 0x111111, 0.5, 0.50, 0.10, 0,0,Math.PI/2));
+
+  // ── Kanonrør ──────────────────────────────────────────────
+  const barrel = new THREE.Group();
+  barrel.position.set(0, 0.06, -1.15);
+  barrel.add(mk(new THREE.CylinderGeometry(0.14,0.16,2.20,10), 0x222222, 0,0,0, Math.PI/2,0,0));
+  barrel.add(mk(new THREE.CylinderGeometry(0.17,0.14,0.30,10), 0x1a1a1a, 0,0,-1.25, Math.PI/2,0,0));
+  barrel.add(mk(new THREE.CylinderGeometry(0.10,0.14,0.20,8),  0x111111, 0,0, 0.98, Math.PI/2,0,0));
+  turret.add(barrel);
+  g.add(turret);
+  g.userData.turret = turret;
+
   return g;
 }
 
@@ -695,6 +746,19 @@ function updateVehicles(dz) {
   for (let i = vehicles.length-1; i >= 0; i--) {
     const v = vehicles[i];
     v.group.position.z += dz;
+
+    // Vognen kjører mot spilleren når den er i nærheten
+    if (v.group.position.z > -50) {
+      v.group.position.z += VEHICLE_SPEED * _dt;
+    }
+    // Stopp rett foran crowd
+    if (v.group.position.z > -4) v.group.position.z = -4;
+
+    // Roter turret sakte
+    if (v.group.userData.turret) {
+      v.group.userData.turret.rotation.y += _dt * 0.5;
+    }
+
     if (v.group.position.z > 30) {
       scene.remove(v.group);
       vehicles.splice(i, 1);
@@ -947,9 +1011,14 @@ function spawnMuzzleFlash(wx, wy, wz) {
 }
 
 function shootPlayerBullets() {
-  if (!enemies.length) return;
-  const target = enemies.reduce((a,b) => a.group.position.z > b.group.position.z ? a : b);
-  if (target.group.position.z < -45) return;
+  // Finn nærmeste mål: fiende eller kjøretøy
+  const allTargets = [
+    ...enemies.map(e => ({ z: e.group.position.z })),
+    ...vehicles.map(v => ({ z: v.group.position.z })),
+  ];
+  if (!allTargets.length) return;
+  const nearestZ = allTargets.reduce((a,b) => a.z > b.z ? a : b).z;
+  if (nearestZ < -45) return;
 
   // Skyt fra opptil 8 soldater
   const shooters = Math.min(crowdFigs.length, Math.min(crowdSize, 8));
@@ -1284,9 +1353,10 @@ function loop(ts) {
     updateEnemies(combat ? 0 : dz);
     if (!combat) checkSpawns(dz);
 
-    // Auto-skyting
+    // Auto-skyting – bruk currentWeapon().interval, skyt på fiender OG kjøretøy
     shootTimer += dt;
-    if (shootTimer >= CFG.shootInterval && enemies.length > 0) {
+    const wInterval = currentWeapon().interval;
+    if (shootTimer >= wInterval && (enemies.length > 0 || vehicles.length > 0)) {
       shootTimer = 0;
       shootPlayerBullets();
     }
