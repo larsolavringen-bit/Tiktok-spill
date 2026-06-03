@@ -54,8 +54,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-scene.fog        = new THREE.Fog(0x87ceeb, 38, 90);
+scene.background = new THREE.Color(0xd4b896);
+scene.fog        = new THREE.Fog(0xc8a97a, 30, 85);
 
 const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 150);
 camera.position.set(0, 13, 20);
@@ -71,9 +71,9 @@ function onResize() {
 window.addEventListener('resize', onResize);
 onResize();
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const sun = new THREE.DirectionalLight(0xffffff, 1.0);
-sun.position.set(10, 22, 10);
+scene.add(new THREE.AmbientLight(0xfff0d0, 0.75));
+const sun = new THREE.DirectionalLight(0xffd580, 1.1);
+sun.position.set(15, 25, 8);
 sun.castShadow = true;
 Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:0.5, far:80 });
 sun.shadow.mapSize.set(1024, 1024);
@@ -190,9 +190,9 @@ function createSoldier(teamColor) {
 
 // ── Vei ───────────────────────────────────────────────────
 const SEG = 28, NSEGS = 7;
-const roadMat  = new THREE.MeshLambertMaterial({ color: 0x90a4ae });
-const grassMat = new THREE.MeshLambertMaterial({ color: 0x66bb6a });
-const lineMat  = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const roadMat  = new THREE.MeshLambertMaterial({ color: 0x8d7d6a });
+const sandMat  = new THREE.MeshLambertMaterial({ color: 0xd4a96a });
+const lineMat  = new THREE.MeshLambertMaterial({ color: 0xf5e6c8 });
 
 function makeRoadSeg() {
   const g = new THREE.Group();
@@ -200,9 +200,9 @@ function makeRoadSeg() {
   r.receiveShadow = true;
   g.add(r);
   [-1,1].forEach(s => {
-    const gr = new THREE.Mesh(new THREE.BoxGeometry(6, 0.1, SEG), grassMat);
-    gr.position.x = s * (CFG.roadWidth/2 + 3);
-    g.add(gr);
+    const sd = new THREE.Mesh(new THREE.BoxGeometry(20, 0.08, SEG), sandMat);
+    sd.position.x = s * (CFG.roadWidth/2 + 10);
+    g.add(sd);
   });
   for (let z = -SEG/2+2; z < SEG/2; z += 4.5) {
     const l = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 1.6), lineMat);
@@ -226,6 +226,140 @@ function updateRoad(dz) {
     if (s.position.z > SEG * 1.5) s.position.z -= NSEGS * SEG;
   });
 }
+
+// ── Ørken-rekvisitter ──────────────────────────────────────
+// Gjenbrukbare geo/mat for militære props
+const PGEO = {
+  sandbag:  new THREE.BoxGeometry(0.6, 0.3, 0.35),
+  barrel:   new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8),
+  crate:    new THREE.BoxGeometry(0.55, 0.55, 0.55),
+  trapBar:  new THREE.BoxGeometry(0.08, 0.08, 1.1),
+  bush:     new THREE.SphereGeometry(0.3, 5, 4),
+  cactusB:  new THREE.CylinderGeometry(0.12, 0.14, 0.9, 6),
+  cactusA:  new THREE.CylinderGeometry(0.07, 0.08, 0.4, 6),
+  rubble:   new THREE.BoxGeometry(0.4, 0.22, 0.35),
+};
+const PMAT = {
+  sand:    new THREE.MeshLambertMaterial({ color: 0xc8a060 }),
+  sandbag: new THREE.MeshLambertMaterial({ color: 0xb8954a }),
+  barrel:  new THREE.MeshLambertMaterial({ color: 0x4a5240 }),
+  crate:   new THREE.MeshLambertMaterial({ color: 0x8b7355 }),
+  trap:    new THREE.MeshLambertMaterial({ color: 0x606060 }),
+  bush:    new THREE.MeshLambertMaterial({ color: 0x8b7340 }),
+  cactus:  new THREE.MeshLambertMaterial({ color: 0x6b8c42 }),
+  rubble:  new THREE.MeshLambertMaterial({ color: 0x9e8c7a }),
+};
+
+function makeSandbags() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const b = new THREE.Mesh(PGEO.sandbag, PMAT.sandbag);
+    b.position.set(i * 0.58 - 0.58, 0.15, (Math.random()-0.5)*0.2);
+    b.rotation.y = (Math.random()-0.5)*0.3;
+    b.castShadow = true; g.add(b);
+  }
+  for (let i = 0; i < 2; i++) {
+    const b = new THREE.Mesh(PGEO.sandbag, PMAT.sandbag);
+    b.position.set(i * 0.58 - 0.29, 0.44, (Math.random()-0.5)*0.15);
+    b.castShadow = true; g.add(b);
+  }
+  return g;
+}
+
+function makeTankTrap() {
+  const g = new THREE.Group();
+  const angles = [[0,0,0],[Math.PI/2,0,0],[0,0,Math.PI/2]];
+  angles.forEach(([rx,ry,rz]) => {
+    const b = new THREE.Mesh(PGEO.trapBar, PMAT.trap);
+    b.rotation.set(rx,ry,rz); b.castShadow = true; g.add(b);
+  });
+  return g;
+}
+
+function makeCactus() {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(PGEO.cactusB, PMAT.cactus);
+  trunk.position.y = 0.45; trunk.castShadow = true; g.add(trunk);
+  [-0.28, 0.28].forEach(dx => {
+    const arm = new THREE.Mesh(PGEO.cactusA, PMAT.cactus);
+    arm.position.set(dx, 0.55, 0);
+    arm.rotation.z = dx > 0 ? -0.6 : 0.6;
+    g.add(arm);
+  });
+  return g;
+}
+
+function makeDeadBush() {
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(PGEO.bush, PMAT.bush);
+  b.scale.set(1, 0.6, 1); b.position.y = 0.18; g.add(b);
+  return g;
+}
+
+function makeBarrel() {
+  const g = new THREE.Group();
+  const b = new THREE.Mesh(PGEO.barrel, PMAT.barrel);
+  b.position.y = 0.25; b.castShadow = true; g.add(b);
+  return g;
+}
+
+function makeCrate() {
+  const g = new THREE.Group();
+  const c = new THREE.Mesh(PGEO.crate, PMAT.crate);
+  c.position.y = 0.28; c.castShadow = true; g.add(c);
+  return g;
+}
+
+function makeRubble() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 3; i++) {
+    const r = new THREE.Mesh(PGEO.rubble, PMAT.rubble);
+    r.position.set((Math.random()-0.5)*0.6, 0.11, (Math.random()-0.5)*0.4);
+    r.rotation.y = Math.random()*Math.PI;
+    r.castShadow = true; g.add(r);
+  }
+  return g;
+}
+
+// Prop-objekt-liste og spawn
+const props = []; // { group }
+const PROP_SIDE_MIN = CFG.roadWidth/2 + 1.2;
+const PROP_SIDE_MAX = CFG.roadWidth/2 + 8;
+let propSpawnZ   = -20;
+const PROP_INTERVAL = 8; // avstand mellom prop-grupper
+
+function spawnPropGroup(atZ) {
+  const makers = [makeSandbags, makeTankTrap, makeCactus, makeDeadBush,
+                  makeBarrel, makeCrate, makeRubble, makeDeadBush, makeCactus];
+  // Plasser 1-2 props per side
+  [-1, 1].forEach(side => {
+    if (Math.random() < 0.35) return; // hopp over av og til for variasjon
+    const maker = makers[Math.floor(Math.random()*makers.length)];
+    const g     = maker();
+    const xDist = PROP_SIDE_MIN + Math.random()*(PROP_SIDE_MAX - PROP_SIDE_MIN);
+    g.position.set(side * xDist, 0, atZ);
+    g.rotation.y = Math.random()*Math.PI*2;
+    scene.add(g);
+    props.push({ group: g });
+  });
+}
+
+function updateProps(dz) {
+  // Spawn nye props
+  if (propSpawnZ + props.reduce((mn,p)=>Math.min(mn,p.group.position.z),0) > -PROP_INTERVAL) {
+    // enkelt: bare sjekk om vi trenger nytt
+  }
+  for (let i = props.length-1; i >= 0; i--) {
+    props[i].group.position.z += dz;
+    if (props[i].group.position.z > 30) {
+      scene.remove(props[i].group);
+      props.splice(i, 1);
+    }
+  }
+}
+
+// Pre-spawn props
+for (let z = -10; z > -200; z -= PROP_INTERVAL) spawnPropGroup(z);
 
 // ── Crowd ──────────────────────────────────────────────────
 const crowdGroup = new THREE.Group();
@@ -442,65 +576,110 @@ function refreshEnemyHP(en) {
   en.labelMesh.material.needsUpdate = true;
 }
 
-// ── Skudd ──────────────────────────────────────────────────
-const playerBullets = []; // { mesh, vz }
-const enemyBullets  = []; // { mesh, vz, vx }
+// ── Skudd – object pool ────────────────────────────────────
+const POOL_SIZE   = 120;
+const bulletPool  = [];   // gjenbrukbare meshes
+const activePBullets = []; // { mesh, vx, vz, life }
+const activeEBullets = [];
+
+// Muzzle flash meshes (én per soldat, maks 10 synlige)
+const flashGeo = new THREE.SphereGeometry(0.12, 5, 4);
+const flashMat = new THREE.MeshBasicMaterial({ color: 0xffdd00 });
+const flashes  = [];
+for (let i = 0; i < 10; i++) {
+  const f = new THREE.Mesh(flashGeo, flashMat);
+  f.visible = false;
+  scene.add(f);
+  flashes.push({ mesh: f, timer: 0 });
+}
+let flashIdx = 0;
+
+// Lag bullet pool
+const pbGeo = new THREE.BoxGeometry(0.06, 0.06, 0.28); // tracer: avlang
+const pbMat = new THREE.MeshBasicMaterial({ color: 0xffe566 });
+const ebGeo = new THREE.SphereGeometry(0.10, 5, 4);
+const ebMat = new THREE.MeshBasicMaterial({ color: 0xff4422 });
+for (let i = 0; i < POOL_SIZE; i++) {
+  const m = new THREE.Mesh(pbGeo, pbMat);
+  m.visible = false;
+  scene.add(m);
+  bulletPool.push(m);
+}
+
+function getBulletMesh() {
+  const m = bulletPool.find(b => !b.visible);
+  return m || null; // null hvis pool er full
+}
+
+function spawnMuzzleFlash(wx, wy, wz) {
+  const f = flashes[flashIdx % flashes.length];
+  flashIdx++;
+  f.mesh.position.set(wx, wy, wz - 0.25);
+  f.mesh.visible  = true;
+  f.mesh.scale.setScalar(0.6 + Math.random()*0.8);
+  f.timer = 0.06; // sekunder den er synlig
+}
 
 function shootPlayerBullets() {
   if (!enemies.length) return;
-  // Fremste fiende
   const target = enemies.reduce((a,b) => a.group.position.z > b.group.position.z ? a : b);
-  if (target.group.position.z < -40) return; // for langt unna
+  if (target.group.position.z < -45) return;
 
-  // Skyt fra noen tilfeldige figurer i crowd
-  const shooters = Math.min(crowdSize, Math.min(crowdFigs.length, 5));
+  // Skyt fra opptil 8 soldater
+  const shooters = Math.min(crowdFigs.length, Math.min(crowdSize, 8));
   for (let i = 0; i < shooters; i++) {
     const fig = crowdFigs[i];
-    const wx  = crowdX + (fig ? fig.position.x : 0);
-    const wz  = fig ? fig.position.z : 0;
+    if (!fig) continue;
+    const wx = crowdX + fig.position.x + 0.22;
+    const wy = 0.72;
+    const wz = fig.position.z - 0.20;
 
-    const bullet = new THREE.Mesh(GEO.bullet, MAT.bulletPlayer);
-    bullet.position.set(wx, 0.85, wz);
-    scene.add(bullet);
-    playerBullets.push({ mesh: bullet });
+    // Hent fra pool
+    const m = getBulletMesh();
+    if (!m) continue;
+    m.position.set(wx, wy, wz);
+    m.visible = true;
+    // Liten spredning horisontalt
+    const spread = (Math.random()-0.5) * 0.04;
+    activePBullets.push({ mesh: m, vx: spread, life: 2.0 });
+
+    // Munningsflamme
+    spawnMuzzleFlash(wx, wy, wz);
   }
 }
 
 function shootEnemyBullets(en) {
-  const numShooters = Math.min(4, Math.ceil(en.hp / en.maxHp * 4));
+  const numShooters = Math.min(5, Math.max(1, Math.ceil(en.hp / en.maxHp * 5)));
   for (let i = 0; i < numShooters; i++) {
-    const spread = (Math.random()-0.5) * 3;
-    const bullet = new THREE.Mesh(GEO.eBullet, MAT.bulletEnemy);
-    bullet.position.set(
-      en.group.position.x + spread,
-      0.85,
-      en.group.position.z
-    );
-    scene.add(bullet);
-    // Skyt mot crowd (positiv Z = mot kamera)
-    enemyBullets.push({ mesh: bullet, vx: spread*0.3 });
+    const spread = (Math.random()-0.5) * 2.5;
+    const m = new THREE.Mesh(ebGeo, ebMat);
+    m.position.set(en.group.position.x + spread, 0.8, en.group.position.z);
+    scene.add(m);
+    activeEBullets.push({ mesh: m, vx: spread * 0.15, life: 3.0 });
   }
 }
 
 function updateBullets(dt) {
-  const dz = speed * dt; // verden beveger seg +dz, skudd beveger seg relativt
+  const pSpeed = CFG.bulletSpeed;
+  const eSpeed = CFG.enemyBulletSpeed;
 
-  // Spillerskudd – beveger seg i -Z (fremover i verden)
-  for (let i = playerBullets.length-1; i >= 0; i--) {
-    const b = playerBullets[i];
-    b.mesh.position.z -= CFG.bulletSpeed * dt;
+  // Spillerskudd
+  for (let i = activePBullets.length-1; i >= 0; i--) {
+    const b = activePBullets[i];
+    b.life -= dt;
+    b.mesh.position.z -= pSpeed * dt;
+    b.mesh.position.x += b.vx;
 
     // Treff fiende?
     let hit = false;
     for (const en of enemies) {
       if (!en.alive) continue;
-      const dz2 = b.mesh.position.z - en.group.position.z;
-      const dx2 = b.mesh.position.x - en.group.position.x;
-      if (Math.abs(dz2) < 2.5 && Math.abs(dx2) < 3.0) {
+      const dz = b.mesh.position.z - en.group.position.z;
+      const dx = b.mesh.position.x - en.group.position.x;
+      if (Math.abs(dz) < 2.8 && Math.abs(dx) < 3.2) {
         en.hp -= CFG.bulletDmg;
         hit = true;
         refreshEnemyHP(en);
-
         if (en.hp <= 0) {
           en.alive = false;
           scene.remove(en.group);
@@ -509,44 +688,49 @@ function updateBullets(dt) {
           wave++;
           speed += CFG.speedIncrement;
           updateHUD();
-          if (wave >= CFG.winAtWave) { setTimeout(triggerVictory, 400); }
+          if (wave >= CFG.winAtWave) setTimeout(triggerVictory, 400);
         }
         break;
       }
     }
 
-    // Fjern skudd hvis treff eller for langt
-    if (hit || b.mesh.position.z < -50) {
-      scene.remove(b.mesh);
-      playerBullets.splice(i, 1);
+    if (hit || b.life <= 0 || b.mesh.position.z < -55) {
+      b.mesh.visible = false;
+      activePBullets.splice(i, 1);
     }
   }
 
-  // Fiendeskudd – beveger seg i +Z (mot kamera/crowd)
-  for (let i = enemyBullets.length-1; i >= 0; i--) {
-    const b = enemyBullets[i];
-    b.mesh.position.z += CFG.enemyBulletSpeed * dt;
+  // Fiendeskudd
+  for (let i = activeEBullets.length-1; i >= 0; i--) {
+    const b = activeEBullets[i];
+    b.life -= dt;
+    b.mesh.position.z += eSpeed * dt;
     b.mesh.position.x += b.vx * dt * 2;
 
-    // Treff crowd?
-    const dz2 = b.mesh.position.z;       // crowd er ved z≈0
-    const dx2 = b.mesh.position.x - crowdX;
-    if (Math.abs(dz2) < 2.5 && Math.abs(dx2) < CFG.crowdSpread + 0.5) {
+    const dz = b.mesh.position.z;
+    const dx = b.mesh.position.x - crowdX;
+    if (Math.abs(dz) < 2.5 && Math.abs(dx) < CFG.crowdSpread + 0.5) {
       crowdSize = Math.max(0, crowdSize - 1);
       rebuildCrowd();
       updateHUD();
       scene.remove(b.mesh);
-      enemyBullets.splice(i, 1);
-
+      activeEBullets.splice(i, 1);
       if (crowdSize <= 0) { setTimeout(triggerGameOver, 500); return; }
       continue;
     }
 
-    if (b.mesh.position.z > 25) {
+    if (b.life <= 0 || b.mesh.position.z > 28) {
       scene.remove(b.mesh);
-      enemyBullets.splice(i, 1);
+      activeEBullets.splice(i, 1);
     }
   }
+
+  // Oppdater munningsflamme-timere
+  flashes.forEach(f => {
+    if (!f.mesh.visible) return;
+    f.timer -= dt;
+    if (f.timer <= 0) f.mesh.visible = false;
+  });
 }
 
 // ── Flytende tekst (port-feedback) ────────────────────────
@@ -613,8 +797,10 @@ document.getElementById('victory-restart-btn').addEventListener('click', startGa
 function startGame() {
   gates.forEach(g => scene.remove(g.group));         gates.length=0;
   enemies.forEach(e => scene.remove(e.group));       enemies.length=0;
-  playerBullets.forEach(b => scene.remove(b.mesh));  playerBullets.length=0;
-  enemyBullets.forEach(b => scene.remove(b.mesh));   enemyBullets.length=0;
+  activePBullets.forEach(b => { b.mesh.visible=false; }); activePBullets.length=0;
+  activeEBullets.forEach(b => scene.remove(b.mesh));      activeEBullets.length=0;
+  flashes.forEach(f => { f.mesh.visible=false; f.timer=0; });
+  bulletPool.forEach(m => { m.visible=false; });
 
   crowdSize=CFG.startCrowd; wave=0; speed=CFG.runSpeed;
   crowdX=0; targetX=0; travelZ=0;
@@ -698,6 +884,7 @@ function loop(ts) {
     const dz = crowdStopped ? 0 : speed * dt;
 
     updateRoad(dz);
+    updateProps(dz);
     updateGates(dz);
     // Sender dz=0 til updateEnemies under kamp slik at fienden ikke drifter med verden –
     // fienden styrer sin egen marsj i updateEnemies via _dt
