@@ -6,25 +6,25 @@
 // ============================================================
 
 // ── Verdensfart (juster denne for å endre tempo) ───────────
-const WORLD_SPEED = 7; // enheter per sekund – øker svakt per bølge
+const WORLD_SPEED = 11; // enheter per sekund – øker svakt per bølge
 
 const CFG = {
   startCrowd:     10,
   runSpeed:       WORLD_SPEED,
   speedIncrement: 0.15,
-  roadWidth:       9,
+  roadWidth:      14,
   laneWidth:      2.6,
-  crowdSpread:    3.2,   // mye mer avstand mellom spillerfigurer
-  soldierScale:   0.62,  // global skala for soldater (ned fra ~1.0)
-  gateInterval:   45,
-  enemyInterval:  70,
+  crowdSpread:    3.2,
+  soldierScale:   0.62,
+  gateInterval:   35,
+  enemyInterval:  45,
   bossEveryN:      5,
-  baseEnemyHP:    20,    // mye lavere start-HP
-  enemyHPScale:   1.4,   // saktere HP-vekst
+  baseEnemyHP:    20,
+  enemyHPScale:   1.4,
   bossMultiplier:  3,
-  enemySpread:    3.5,   // mer avstand mellom fiendefigurer
-  maxEnemyCount:  12,    // færre figurer per bølge
-  keySpeed:        7,
+  enemySpread:    3.5,
+  maxEnemyCount:  20,
+  keySpeed:        9,
   minCrowd:        1,
   maxCrowd:       999,
   winAtWave:      20,
@@ -81,13 +81,13 @@ function getLevelParams(lvl) {
   const n   = lvl - 1;
   const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
   return {
-    worldSpeed:      Math.min(4 + n * 0.7 + rnd(), 14),
-    wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5) + (Math.random() < 0.4 ? 1 : 0)),
-    enemyHP:         Math.round((10 + n * 5) * (1 + rnd())),
-    enemyCount:      Math.min(3 + Math.floor(n * 0.8), CFG.maxEnemyCount),
-    bossHP:          Math.round((40 + n * 22) * (1 + rnd())),
-    gateInterval:    Math.max(30, 45 - n * 0.8),
-    enemyInterval:   Math.max(50, 70 - n * 1.5),
+    worldSpeed:      Math.min(11 + n * 0.8 + rnd(), 20),
+    wavesBeforeBoss: Math.max(1, 1 + Math.floor(n * 0.4)),
+    enemyHP:         Math.round((15 + n * 8) * (1 + rnd())),
+    enemyCount:      Math.min(5 + Math.floor(n * 1.2), CFG.maxEnemyCount),
+    bossHP:          Math.round((60 + n * 30) * (1 + rnd())),
+    gateInterval:    Math.max(20, 35 - n * 0.6),
+    enemyInterval:   Math.max(30, 45 - n * 1.2),
   };
 }
 
@@ -100,9 +100,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xd4b896);
 scene.fog        = new THREE.Fog(0xc8a97a, 30, 85);
 
-const camera = new THREE.PerspectiveCamera(52, 1, 0.1, 150);
-camera.position.set(0, 13, 20);
-camera.lookAt(0, 0, -4);
+const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 150);
+camera.position.set(0, 14, 22);
+camera.lookAt(0, 0, -6);
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -572,8 +572,8 @@ function spawnGates(atZ) {
   ];
 
   sides.forEach(({ xPos, isGood }) => {
-    // Klamp porter innenfor veien
-    const clampedX = Math.max(-(CFG.roadWidth/2 - 0.8), Math.min(CFG.roadWidth/2 - 0.8, xPos));
+    // Klamp porter innenfor veien (alltid synlig og skytbar)
+    const clampedX = Math.max(-(CFG.roadWidth/2 - 1.5), Math.min(CFG.roadWidth/2 - 1.5, xPos));
     const startVal = gateStartVal(isGood);
     const bg       = isGood ? '#2e7d32' : '#c62828';
     const text     = isGood ? `+${startVal}` : `${startVal}`;
@@ -1075,7 +1075,7 @@ function updateBullets(dt) {
       if (gate.passed) continue;
       const gz = b.mesh.position.z - gate.group.position.z;
       const gx = b.mesh.position.x - gate.xPos;
-      if (Math.abs(gz) < 1.4 && Math.abs(gx) < 1.2) {
+      if (Math.abs(gz) < 1.8 && Math.abs(gx) < 1.6) {
         gate.currentVal += 1;
         refreshGateLabel(gate);
         hit = true; break;
