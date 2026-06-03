@@ -140,10 +140,16 @@ function createSoldier(teamColor) {
 
   // Fargepalett
   const C = isEnemy ? {
-    helmet:   0x5a2222, uniform:  0x7a2828, vest:     0x4a1a1a,
-    pants:    0x5a2020, boot:     0x2e1a10, glove:    0x1a1010,
-    accent:   0xd32f2f, pouch:    0x3e1414, kneepad:  0x3a1818,
-    eyeCol:   0x111111, skin:     0xffcc80,
+    helmet:   0x111111,           // nesten svart hjelm
+    uniform:  0x8b1515,           // mørkerød uniform
+    vest:     0x0d0d0d,           // svart taktisk vest
+    pants:    0x7a1212,           // mørkerød bukse
+    boot:     0x0a0a0a,           // svart støvel
+    glove:    0x080808,           // svart hanske
+    accent:   0xcc1111,           // knallrød aksent (brystplate, knepad)
+    pouch:    0x1a1a1a,           // svarte lommer
+    kneepad:  0x0d0d0d,           // svart knepad
+    eyeCol:   0x050505, skin:     0xffcc80,
   } : {
     helmet:   0x4a5e2a, uniform:  0x556b2f, vest:     0x6b5a3a,
     pants:    0x4a5e2a, boot:     0x7a5c38, glove:    0x1a1a1a,
@@ -239,8 +245,18 @@ function createSoldier(teamColor) {
   headGrp.add(dome);
   // Hjelmkant (brim)
   headGrp.add(mk(CGEO.helmetBrim, C.helmet, 0, -0.09, 0));
-  // Liten detalj på toppen (NVG-mount eller sensor)
+  // NVG-mount / sensor på toppen
   headGrp.add(mk(new THREE.BoxGeometry(0.07,0.06,0.09), 0x333333, 0, 0.30, 0.10));
+
+  // Fiende: rød hodeskalle-plate på fronten av hjelmen
+  if (isEnemy) {
+    headGrp.add(mk(new THREE.BoxGeometry(0.16,0.13,0.04), 0x1a1a1a,  0,  0.06, 0.29));
+    headGrp.add(mk(new THREE.BoxGeometry(0.10,0.08,0.04), 0xcc1111,  0,  0.06, 0.32)); // rød skull-markering
+    // Røde sidepaneler på hjelmen
+    [-1,1].forEach(s =>
+      headGrp.add(mk(new THREE.BoxGeometry(0.04,0.08,0.10), 0x1a1a1a, s*0.30, 0.04, 0.10))
+    );
+  }
 
   root.add(headGrp);
 
