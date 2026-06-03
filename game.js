@@ -7,8 +7,8 @@
 
 const CFG = {
   startCrowd:     10,
-  runSpeed:        7,
-  speedIncrement: 0.2,
+  runSpeed:       12,   // raskere grunnfart
+  speedIncrement: 0.3,
   roadWidth:       9,
   laneWidth:      2.6,
   crowdSpread:    1.9,
@@ -25,8 +25,10 @@ const CFG = {
   bulletSpeed:    28,
   shootInterval:  0.18,  // sekunder mellom skudd
   bulletDmg:       1,
-  enemyShootInterval: 0.5,
-  enemyBulletSpeed:   14,
+  enemyShootInterval: 0.45,
+  enemyBulletSpeed:   18,
+  enemyWalkSpeed:      5,   // fiende-marsjfart mot crowd
+  bossThreshold:      150,  // HP over dette = crowd stopper, boss marsjerer
 };
 
 // ── State ──────────────────────────────────────────────────
@@ -399,17 +401,30 @@ function spawnEnemy(atZ, waveNum) {
   enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss, alive:true });
 }
 
-// Returnerer true hvis en fiende blokkerer fremgangen
-function enemyBlocking() {
-  return enemies.some(en => en.group.position.z > -8);
+// Nærmeste fiende (høyest Z = nærmest crowd)
+function closestEnemy() {
+  if (!enemies.length) return null;
+  return enemies.reduce((a,b) => a.group.position.z > b.group.position.z ? a : b);
+}
+
+// Er vi i kamp? (fiende innen kampsonen)
+function inCombat() {
+  return enemies.some(en => en.group.position.z > -10);
 }
 
 function updateEnemies(dz) {
   for (let i = enemies.length-1; i >= 0; i--) {
     const en = enemies[i];
     en.group.position.z += dz;
-    // Klem fienden på plass – ikke la den passere crowd
-    if (en.group.position.z > -4) en.group.position.z = -4;
+
+    // Fienden marsjerer alltid mot crowd når den er i nærheten
+    if (en.group.position.z > -40) {
+      en.group.position.z += CFG.enemyWalkSpeed * _dt;
+    }
+
+    // Ikke la fienden overskride crowd-posisjonen
+    if (en.group.position.z > -2) en.group.position.z = -2;
+
     if (en.group.position.z > 30) {
       scene.remove(en.group);
       enemies.splice(i, 1);
@@ -654,11 +669,13 @@ function animateCrowd(dt) {
 
 // ── Game loop ──────────────────────────────────────────────
 let lastTS = null;
+let _dt    = 0.016; // global dt for bruk i updateEnemies
 
 function loop(ts) {
   requestAnimationFrame(loop);
-  const dt = lastTS ? Math.min((ts-lastTS)/1000, 0.05) : 0.016;
+  _dt = lastTS ? Math.min((ts-lastTS)/1000, 0.05) : 0.016;
   lastTS = ts;
+  const dt = _dt;
 
   if (state==='playing') {
     // Tastatur
@@ -668,13 +685,21 @@ function loop(ts) {
     crowdX += (targetX-crowdX)*Math.min(1, dt*14);
     crowdGroup.position.x = crowdX;
 
-    // Stopp fremgangen mens en fiende blokkerer veien
-    const blocked = enemyBlocking();
-    const dz = blocked ? 0 : speed*dt;
+    // Sjekk om vi er i kamp og om det er boss
+    const combat  = inCombat();
+    const front   = closestEnemy();
+    const isBoss  = front && front.isBoss && front.hp > CFG.bossThreshold;
+
+    // Crowd stopper mot høy-level boss, løper mot normale fiender
+    const crowdStopped = combat && isBoss;
+    const dz = crowdStopped ? 0 : speed * dt;
+
     updateRoad(dz);
     updateGates(dz);
-    updateEnemies(blocked ? speed*dt : dz); // fiender ruller alltid inn, stopper når nær
-    if (!blocked) checkSpawns(dz);
+    // Sender dz=0 til updateEnemies under kamp slik at fienden ikke drifter med verden –
+    // fienden styrer sin egen marsj i updateEnemies via _dt
+    updateEnemies(combat ? 0 : dz);
+    if (!combat) checkSpawns(dz);
 
     // Auto-skyting
     shootTimer += dt;
@@ -683,16 +708,12 @@ function loop(ts) {
       shootPlayerBullets();
     }
 
-    // Fiende skyter tilbake når den er nær nok
-    if (enemies.length > 0) {
-      const closestEnemy = enemies.reduce((a,b) =>
-        a.group.position.z > b.group.position.z ? a : b);
-      if (closestEnemy.group.position.z > -35) {
-        enemyShootTimer += dt;
-        if (enemyShootTimer >= CFG.enemyShootInterval) {
-          enemyShootTimer = 0;
-          shootEnemyBullets(closestEnemy);
-        }
+    // Fiende skyter tilbake
+    if (front && front.group.position.z > -35) {
+      enemyShootTimer += dt;
+      if (enemyShootTimer >= CFG.enemyShootInterval) {
+        enemyShootTimer = 0;
+        shootEnemyBullets(front);
       }
     }
 
