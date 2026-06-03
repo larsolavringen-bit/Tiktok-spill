@@ -461,12 +461,23 @@ function rebuildCrowd() {
 // ── Porter ─────────────────────────────────────────────────
 const gates = [];
 
+// Sikker avrundet rektangel (ctx.roundRect mangler i eldre nettlesere)
+function rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y); ctx.arcTo(x+w,y, x+w,y+r, r);
+  ctx.lineTo(x+w, y+h-r); ctx.arcTo(x+w,y+h, x+w-r,y+h, r);
+  ctx.lineTo(x+r, y+h); ctx.arcTo(x,y+h, x,y+h-r, r);
+  ctx.lineTo(x, y+r); ctx.arcTo(x,y, x+r,y, r);
+  ctx.closePath();
+}
+
 function textTex(text, bg, fg) {
   const W=256, H=100;
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const ctx=c.getContext('2d');
   ctx.fillStyle=bg;
-  ctx.beginPath(); ctx.roundRect(2,2,W-4,H-4,14); ctx.fill();
+  rrect(ctx,2,2,W-4,H-4,14); ctx.fill();
   ctx.fillStyle=fg; ctx.font=`bold ${H*0.56}px Arial`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(text, W/2, H/2);
@@ -568,10 +579,10 @@ function hpTex(hp, maxHp) {
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const ctx=c.getContext('2d');
   ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.beginPath(); ctx.roundRect(0,0,W,H,10); ctx.fill();
+  rrect(ctx,0,0,W,H,10); ctx.fill();
   const pct=Math.max(0,hp/maxHp);
   ctx.fillStyle=pct>0.5?'#43a047':pct>0.25?'#fb8c00':'#e53935';
-  ctx.beginPath(); ctx.roundRect(4,4,(W-8)*pct,H-8,7); ctx.fill();
+  rrect(ctx,4,4,(W-8)*pct,H-8,7); ctx.fill();
   ctx.fillStyle='#fff'; ctx.font=`bold ${H*0.5}px Arial`;
   ctx.textAlign='center'; ctx.textBaseline='middle';
   ctx.fillText(String(hp), W/2, H/2);
