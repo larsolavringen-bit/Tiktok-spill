@@ -399,10 +399,17 @@ function spawnEnemy(atZ, waveNum) {
   enemies.push({ group:g, hp, maxHp:hp, labelMesh:lbl, isBoss, alive:true });
 }
 
+// Returnerer true hvis en fiende blokkerer fremgangen
+function enemyBlocking() {
+  return enemies.some(en => en.group.position.z > -8);
+}
+
 function updateEnemies(dz) {
   for (let i = enemies.length-1; i >= 0; i--) {
     const en = enemies[i];
     en.group.position.z += dz;
+    // Klem fienden på plass – ikke la den passere crowd
+    if (en.group.position.z > -4) en.group.position.z = -4;
     if (en.group.position.z > 30) {
       scene.remove(en.group);
       enemies.splice(i, 1);
@@ -661,11 +668,13 @@ function loop(ts) {
     crowdX += (targetX-crowdX)*Math.min(1, dt*14);
     crowdGroup.position.x = crowdX;
 
-    const dz = speed*dt;
+    // Stopp fremgangen mens en fiende blokkerer veien
+    const blocked = enemyBlocking();
+    const dz = blocked ? 0 : speed*dt;
     updateRoad(dz);
     updateGates(dz);
-    updateEnemies(dz);
-    checkSpawns(dz);
+    updateEnemies(blocked ? speed*dt : dz); // fiender ruller alltid inn, stopper når nær
+    if (!blocked) checkSpawns(dz);
 
     // Auto-skyting
     shootTimer += dt;
