@@ -6,7 +6,7 @@
 // ============================================================
 
 // ── Verdensfart (juster denne for å endre tempo) ───────────
-const WORLD_SPEED = 11; // enheter per sekund – øker svakt per bølge
+const WORLD_SPEED = 14; // enheter per sekund – øker svakt per bølge
 
 const CFG = {
   startCrowd:     10,
@@ -16,14 +16,14 @@ const CFG = {
   laneWidth:      2.6,
   crowdSpread:    3.2,
   soldierScale:   0.62,
-  gateInterval:   35,
-  enemyInterval:  45,
+  gateInterval:   28,
+  enemyInterval:  35,
   bossEveryN:      5,
-  baseEnemyHP:    20,
-  enemyHPScale:   1.4,
-  bossMultiplier:  3,
+  baseEnemyHP:    30,
+  enemyHPScale:   1.6,
+  bossMultiplier:  4,
   enemySpread:    3.5,
-  maxEnemyCount:  20,
+  maxEnemyCount:  30,
   keySpeed:        9,
   minCrowd:        1,
   maxCrowd:       999,
@@ -81,13 +81,13 @@ function getLevelParams(lvl) {
   const n   = lvl - 1;
   const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
   return {
-    worldSpeed:      Math.min(11 + n * 0.8 + rnd(), 20),
-    wavesBeforeBoss: Math.max(1, 1 + Math.floor(n * 0.4)),
-    enemyHP:         Math.round((15 + n * 8) * (1 + rnd())),
-    enemyCount:      Math.min(5 + Math.floor(n * 1.2), CFG.maxEnemyCount),
-    bossHP:          Math.round((60 + n * 30) * (1 + rnd())),
-    gateInterval:    Math.max(20, 35 - n * 0.6),
-    enemyInterval:   Math.max(30, 45 - n * 1.2),
+    worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
+    wavesBeforeBoss: Math.max(1, 1 + Math.floor(n * 0.5)),
+    enemyHP:         Math.round((30 + n * 15) * (1 + rnd())),
+    enemyCount:      Math.min(8 + Math.floor(n * 2.0), CFG.maxEnemyCount),
+    bossHP:          Math.round((120 + n * 60) * (1 + rnd())),
+    gateInterval:    Math.max(16, 28 - n * 0.5),
+    enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
 }
 
@@ -350,48 +350,61 @@ function updateRoad(dz) {
 }
 
 // ── Ørken-rekvisitter ──────────────────────────────────────
-// Gjenbrukbare geo/mat for militære props
 const PGEO = {
-  sandbag:  new THREE.BoxGeometry(0.6, 0.3, 0.35),
-  barrel:   new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8),
-  crate:    new THREE.BoxGeometry(0.55, 0.55, 0.55),
-  trapBar:  new THREE.BoxGeometry(0.08, 0.08, 1.1),
-  bush:     new THREE.SphereGeometry(0.3, 5, 4),
-  cactusB:  new THREE.CylinderGeometry(0.12, 0.14, 0.9, 6),
-  cactusA:  new THREE.CylinderGeometry(0.07, 0.08, 0.4, 6),
-  rubble:   new THREE.BoxGeometry(0.4, 0.22, 0.35),
+  sandbag:   new THREE.BoxGeometry(0.6, 0.3, 0.35),
+  barrel:    new THREE.CylinderGeometry(0.22, 0.22, 0.5, 8),
+  crate:     new THREE.BoxGeometry(0.55, 0.55, 0.55),
+  trapBar:   new THREE.BoxGeometry(0.08, 0.08, 1.1),
+  bush:      new THREE.SphereGeometry(0.35, 5, 4),
+  cactusB:   new THREE.CylinderGeometry(0.13, 0.15, 1.1, 7),
+  cactusA:   new THREE.CylinderGeometry(0.08, 0.09, 0.5, 6),
+  rubble:    new THREE.BoxGeometry(0.4, 0.22, 0.35),
+  wall:      new THREE.BoxGeometry(2.2, 1.1, 0.3),
+  wallPost:  new THREE.BoxGeometry(0.28, 1.3, 0.28),
+  tent:      new THREE.CylinderGeometry(0.1, 1.8, 1.6, 5),
+  rockL:     new THREE.DodecahedronGeometry(0.7, 0),
+  rockM:     new THREE.DodecahedronGeometry(0.45, 0),
+  rockS:     new THREE.DodecahedronGeometry(0.25, 0),
+  sign:      new THREE.BoxGeometry(0.08, 1.2, 0.08),
+  signBoard: new THREE.BoxGeometry(0.6, 0.4, 0.06),
+  wreck:     new THREE.BoxGeometry(1.8, 0.5, 3.2),
+  wheel:     new THREE.CylinderGeometry(0.38, 0.38, 0.22, 10),
 };
 const PMAT = {
-  sand:    new THREE.MeshLambertMaterial({ color: 0xc8a060 }),
   sandbag: new THREE.MeshLambertMaterial({ color: 0xb8954a }),
   barrel:  new THREE.MeshLambertMaterial({ color: 0x4a5240 }),
+  barrelR: new THREE.MeshLambertMaterial({ color: 0x8b2222 }),
   crate:   new THREE.MeshLambertMaterial({ color: 0x8b7355 }),
   trap:    new THREE.MeshLambertMaterial({ color: 0x606060 }),
   bush:    new THREE.MeshLambertMaterial({ color: 0x8b7340 }),
   cactus:  new THREE.MeshLambertMaterial({ color: 0x6b8c42 }),
   rubble:  new THREE.MeshLambertMaterial({ color: 0x9e8c7a }),
+  wall:    new THREE.MeshLambertMaterial({ color: 0xc4a96e }),
+  tent:    new THREE.MeshLambertMaterial({ color: 0x8b7a5a }),
+  rock:    new THREE.MeshLambertMaterial({ color: 0xaa9880 }),
+  sign:    new THREE.MeshLambertMaterial({ color: 0x7a6040 }),
+  wreck:   new THREE.MeshLambertMaterial({ color: 0x5a4a3a }),
+  wheel:   new THREE.MeshLambertMaterial({ color: 0x1a1a1a }),
 };
 
 function makeSandbags() {
   const g = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
-    const b = new THREE.Mesh(PGEO.sandbag, PMAT.sandbag);
-    b.position.set(i * 0.58 - 0.58, 0.15, (Math.random()-0.5)*0.2);
-    b.rotation.y = (Math.random()-0.5)*0.3;
-    b.castShadow = true; g.add(b);
-  }
-  for (let i = 0; i < 2; i++) {
-    const b = new THREE.Mesh(PGEO.sandbag, PMAT.sandbag);
-    b.position.set(i * 0.58 - 0.29, 0.44, (Math.random()-0.5)*0.15);
-    b.castShadow = true; g.add(b);
+  const rows = 1 + Math.floor(Math.random()*2);
+  for (let row = 0; row < rows; row++) {
+    const cols = 2 + Math.floor(Math.random()*3);
+    for (let i = 0; i < cols; i++) {
+      const b = new THREE.Mesh(PGEO.sandbag, PMAT.sandbag);
+      b.position.set(i*0.56 - cols*0.28, 0.15 + row*0.28, (Math.random()-0.5)*0.15);
+      b.rotation.y = (Math.random()-0.5)*0.4;
+      b.castShadow = true; g.add(b);
+    }
   }
   return g;
 }
 
 function makeTankTrap() {
   const g = new THREE.Group();
-  const angles = [[0,0,0],[Math.PI/2,0,0],[0,0,Math.PI/2]];
-  angles.forEach(([rx,ry,rz]) => {
+  [[0,0,0],[Math.PI/2,0,0],[0,0,Math.PI/2]].forEach(([rx,ry,rz]) => {
     const b = new THREE.Mesh(PGEO.trapBar, PMAT.trap);
     b.rotation.set(rx,ry,rz); b.castShadow = true; g.add(b);
   });
@@ -401,11 +414,12 @@ function makeTankTrap() {
 function makeCactus() {
   const g = new THREE.Group();
   const trunk = new THREE.Mesh(PGEO.cactusB, PMAT.cactus);
-  trunk.position.y = 0.45; trunk.castShadow = true; g.add(trunk);
-  [-0.28, 0.28].forEach(dx => {
+  trunk.position.y = 0.55; trunk.castShadow = true; g.add(trunk);
+  const arms = Math.random() < 0.5 ? [-0.32, 0.32] : [-0.32];
+  arms.forEach(dx => {
     const arm = new THREE.Mesh(PGEO.cactusA, PMAT.cactus);
-    arm.position.set(dx, 0.55, 0);
-    arm.rotation.z = dx > 0 ? -0.6 : 0.6;
+    arm.position.set(dx, 0.6 + Math.random()*0.3, 0);
+    arm.rotation.z = dx > 0 ? -0.55 : 0.55;
     g.add(arm);
   });
   return g;
@@ -413,75 +427,155 @@ function makeCactus() {
 
 function makeDeadBush() {
   const g = new THREE.Group();
-  const b = new THREE.Mesh(PGEO.bush, PMAT.bush);
-  b.scale.set(1, 0.6, 1); b.position.y = 0.18; g.add(b);
+  for (let i = 0; i < 1+Math.floor(Math.random()*2); i++) {
+    const b = new THREE.Mesh(PGEO.bush, PMAT.bush);
+    b.scale.set(0.8+Math.random()*0.6, 0.4+Math.random()*0.4, 0.8+Math.random()*0.6);
+    b.position.set((Math.random()-0.5)*0.5, 0.18, (Math.random()-0.5)*0.4);
+    g.add(b);
+  }
   return g;
 }
 
-function makeBarrel() {
+function makeBarrels() {
   const g = new THREE.Group();
-  const b = new THREE.Mesh(PGEO.barrel, PMAT.barrel);
-  b.position.y = 0.25; b.castShadow = true; g.add(b);
+  const count = 1 + Math.floor(Math.random()*4);
+  for (let i = 0; i < count; i++) {
+    const mat = Math.random() < 0.3 ? PMAT.barrelR : PMAT.barrel;
+    const b = new THREE.Mesh(PGEO.barrel, mat);
+    const upright = Math.random() < 0.7;
+    b.position.set((Math.random()-0.5)*1.0, upright ? 0.25 : 0.22, (Math.random()-0.5)*0.8);
+    if (!upright) b.rotation.z = Math.PI/2;
+    b.castShadow = true; g.add(b);
+  }
   return g;
 }
 
-function makeCrate() {
+function makeCrates() {
   const g = new THREE.Group();
-  const c = new THREE.Mesh(PGEO.crate, PMAT.crate);
-  c.position.y = 0.28; c.castShadow = true; g.add(c);
+  const count = 1 + Math.floor(Math.random()*4);
+  for (let i = 0; i < count; i++) {
+    const c = new THREE.Mesh(PGEO.crate, PMAT.crate);
+    c.position.set((Math.random()-0.5)*1.2, 0.28 + Math.floor(i/2)*0.54, (Math.random()-0.5)*0.8);
+    c.rotation.y = (Math.random()-0.5)*0.5;
+    c.castShadow = true; g.add(c);
+  }
   return g;
 }
 
 function makeRubble() {
   const g = new THREE.Group();
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 4+Math.floor(Math.random()*4); i++) {
     const r = new THREE.Mesh(PGEO.rubble, PMAT.rubble);
-    r.position.set((Math.random()-0.5)*0.6, 0.11, (Math.random()-0.5)*0.4);
+    r.position.set((Math.random()-0.5)*1.4, 0.11, (Math.random()-0.5)*1.0);
     r.rotation.y = Math.random()*Math.PI;
     r.castShadow = true; g.add(r);
   }
   return g;
 }
 
-// Prop-objekt-liste og spawn
-const props = []; // { group }
-const PROP_SIDE_MIN = CFG.roadWidth/2 + 1.2;
-const PROP_SIDE_MAX = CFG.roadWidth/2 + 8;
-let propSpawnZ   = -20;
-const PROP_INTERVAL = 8; // avstand mellom prop-grupper
+function makeRockCluster() {
+  const g = new THREE.Group();
+  const geos = [PGEO.rockL, PGEO.rockM, PGEO.rockS];
+  const count = 2 + Math.floor(Math.random()*4);
+  for (let i = 0; i < count; i++) {
+    const geo = geos[Math.floor(Math.random()*geos.length)];
+    const r = new THREE.Mesh(geo, PMAT.rock);
+    r.position.set((Math.random()-0.5)*1.8, 0.2+Math.random()*0.3, (Math.random()-0.5)*1.2);
+    r.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+    r.castShadow = true; g.add(r);
+  }
+  return g;
+}
+
+function makeSandWall() {
+  const g = new THREE.Group();
+  g.add((() => { const m = new THREE.Mesh(PGEO.wall, PMAT.wall); m.position.y=0.55; m.castShadow=true; return m; })());
+  [-0.9,0.9].forEach(dx => {
+    const p = new THREE.Mesh(PGEO.wallPost, PMAT.wall);
+    p.position.set(dx, 0.65, 0); p.castShadow = true; g.add(p);
+  });
+  return g;
+}
+
+function makeTent() {
+  const g = new THREE.Group();
+  const t = new THREE.Mesh(PGEO.tent, PMAT.tent);
+  t.position.y = 0.8; t.castShadow = true; g.add(t);
+  // Tent pegs
+  for (let i = 0; i < 4; i++) {
+    const a = (i/4)*Math.PI*2;
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.5,5), PMAT.trap);
+    p.position.set(Math.cos(a)*1.4, 0.25, Math.sin(a)*1.4);
+    p.rotation.z = Math.cos(a)*0.4; g.add(p);
+  }
+  return g;
+}
+
+function makeWreckedVehicle() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(PGEO.wreck, PMAT.wreck);
+  body.position.y = 0.35; body.rotation.y = (Math.random()-0.5)*0.6;
+  body.castShadow = true; g.add(body);
+  // Burnt wheels
+  [[-0.9,0,-1.1],[0.9,0,-1.1],[-0.9,0,1.1],[0.9,0,1.1]].forEach(([x,y,z]) => {
+    const w = new THREE.Mesh(PGEO.wheel, PMAT.wheel);
+    w.position.set(x,0.22+y,z);
+    w.rotation.set(0,0,Math.PI/2 + (Math.random()-0.5)*0.8);
+    g.add(w);
+  });
+  return g;
+}
+
+function makeSignPost() {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(PGEO.sign, PMAT.sign);
+  post.position.y = 0.6; g.add(post);
+  const board = new THREE.Mesh(PGEO.signBoard, PMAT.crate);
+  board.position.y = 1.1; board.rotation.y = (Math.random()-0.5)*0.3; g.add(board);
+  return g;
+}
+
+// Prop-liste og spawn
+const props = [];
+const PROP_SIDE_MIN = CFG.roadWidth/2 + 0.8;
+const PROP_SIDE_MAX = CFG.roadWidth/2 + 12;
+const PROP_INTERVAL = 5;
+
+const propMakers = [
+  makeSandbags, makeSandbags, makeTankTrap, makeCactus, makeCactus,
+  makeDeadBush, makeDeadBush, makeBarrels, makeBarrels, makeCrates,
+  makeRubble, makeRockCluster, makeRockCluster, makeSandWall,
+  makeTent, makeWreckedVehicle, makeSignPost,
+];
 
 function spawnPropGroup(atZ) {
-  const makers = [makeSandbags, makeTankTrap, makeCactus, makeDeadBush,
-                  makeBarrel, makeCrate, makeRubble, makeDeadBush, makeCactus];
-  // Plasser 1-2 props per side
   [-1, 1].forEach(side => {
-    if (Math.random() < 0.35) return; // hopp over av og til for variasjon
-    const maker = makers[Math.floor(Math.random()*makers.length)];
-    const g     = maker();
-    const xDist = PROP_SIDE_MIN + Math.random()*(PROP_SIDE_MAX - PROP_SIDE_MIN);
-    g.position.set(side * xDist, 0, atZ);
-    g.rotation.y = Math.random()*Math.PI*2;
-    scene.add(g);
-    props.push({ group: g });
+    // Spawn 1-3 props per side per intervall
+    const count = 1 + Math.floor(Math.random()*3);
+    for (let k = 0; k < count; k++) {
+      const maker = propMakers[Math.floor(Math.random()*propMakers.length)];
+      const g = maker();
+      const xDist = PROP_SIDE_MIN + Math.random()*(PROP_SIDE_MAX - PROP_SIDE_MIN);
+      g.position.set(side * xDist, 0, atZ + (Math.random()-0.5)*PROP_INTERVAL*0.8);
+      g.rotation.y = Math.random()*Math.PI*2;
+      scene.add(g);
+      props.push({ group: g });
+    }
   });
 }
 
 function updateProps(dz) {
-  // Spawn nye props
-  if (propSpawnZ + props.reduce((mn,p)=>Math.min(mn,p.group.position.z),0) > -PROP_INTERVAL) {
-    // enkelt: bare sjekk om vi trenger nytt
-  }
   for (let i = props.length-1; i >= 0; i--) {
     props[i].group.position.z += dz;
-    if (props[i].group.position.z > 30) {
+    if (props[i].group.position.z > 35) {
       scene.remove(props[i].group);
       props.splice(i, 1);
     }
   }
 }
 
-// Pre-spawn props
-for (let z = -10; z > -200; z -= PROP_INTERVAL) spawnPropGroup(z);
+// Pre-spawn props tett langs hele banen
+for (let z = -8; z > -300; z -= PROP_INTERVAL) spawnPropGroup(z);
 
 // ── Crowd ──────────────────────────────────────────────────
 const crowdGroup = new THREE.Group();
