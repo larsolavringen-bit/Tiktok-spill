@@ -177,33 +177,39 @@ const CGEO = {
   rifleScope: new THREE.BoxGeometry(0.05, 0.06, 0.14),
 };
 
-// ── Soldat-fabrikk – chibi cartoon-militær stil ────────────
-// teamColor: aksentfarge som skiller lagene (blå vs rød).
+// ── Soldat-fabrikk – tydelig chibi cartoon-militær ────────
 function createSoldier(teamColor) {
   const isEnemy = (teamColor === 0xc62828);
 
-  // Fargepalett
+  // Tydelige fargepaletter – sterk kontrast mot gul sand
   const C = isEnemy ? {
-    helmet:   0x111111,           // nesten svart hjelm
-    uniform:  0x8b1515,           // mørkerød uniform
-    vest:     0x0d0d0d,           // svart taktisk vest
-    pants:    0x7a1212,           // mørkerød bukse
-    boot:     0x0a0a0a,           // svart støvel
-    glove:    0x080808,           // svart hanske
-    accent:   0xcc1111,           // knallrød aksent (brystplate, knepad)
-    pouch:    0x1a1a1a,           // svarte lommer
-    kneepad:  0x0d0d0d,           // svart knepad
-    eyeCol:   0x050505, skin:     0xffcc80,
+    helmet:  0x1a0a0a,   // nesten svart
+    uniform: 0xb71c1c,   // knallrød uniform
+    vest:    0x1a1a1a,   // svart taktisk vest
+    pants:   0x8b1212,   // mørkerød bukse
+    boot:    0x0d0d0d,
+    glove:   0x0d0d0d,
+    accent:  0xff1744,   // lys-rød aksent
+    pouch:   0x2a2a2a,
+    kneepad: 0x111111,
+    eyeCol:  0xffffff,   // hvite øyne gir uttrykk
+    skin:    0xffcc80,
   } : {
-    helmet:   0x4a5e2a, uniform:  0x556b2f, vest:     0x6b5a3a,
-    pants:    0x4a5e2a, boot:     0x7a5c38, glove:    0x1a1a1a,
-    accent:   teamColor,          pouch:    0x4a3a22, kneepad:  0x3d3020,
-    eyeCol:   0x111111, skin:     0xffcc80,
+    helmet:  0x2e4a1a,   // mørkegrønn hjelm
+    uniform: 0x1565c0,   // klar blå uniform
+    vest:    0x0d3b6e,   // mørkeblå vest
+    pants:   0x1565c0,   // blå bukse
+    boot:    0x3e2a14,   // brun støvel
+    glove:   0x1a1a1a,
+    accent:  0x64b5f6,   // lys-blå aksent
+    pouch:   0x0d2a4e,
+    kneepad: 0x0d3b6e,
+    eyeCol:  0xffffff,
+    skin:    0xffcc80,
   };
 
   const root = new THREE.Group();
 
-  // Hjelpefunksjon
   const mk = (geo, col, x=0, y=0, z=0, rx=0, ry=0, rz=0) => {
     const m = new THREE.Mesh(geo, gMat(col));
     m.position.set(x,y,z);
@@ -212,102 +218,83 @@ function createSoldier(teamColor) {
     return m;
   };
 
-  // ── BEN – grupper med hofte-pivot for bensving ─────────────
+  // ── BEN ────────────────────────────────────────────────────
   const makeLeg = (side) => {
     const g = new THREE.Group();
     g.position.set(side * 0.14, 0.44, 0);
-
-    // Lår
-    const thigh = mk(CGEO.thigh, C.pants, 0, -0.13, 0);
-    g.add(thigh);
-    // Kneskinn
-    const kp = mk(CGEO.kneePad, C.kneepad, 0, -0.26, 0.1);
-    g.add(kp);
-    // Legg
-    const shin = mk(CGEO.shin, C.pants, 0, -0.36, 0);
-    g.add(shin);
-    // Støvel
-    const boot = mk(CGEO.boot, C.boot, 0, -0.52, 0.025);
-    g.add(boot);
-
+    g.add(mk(CGEO.thigh,   C.pants,   0, -0.13, 0));
+    g.add(mk(CGEO.kneePad, C.kneepad, 0, -0.26, 0.10));
+    g.add(mk(CGEO.shin,    C.pants,   0, -0.36, 0));
+    g.add(mk(CGEO.boot,    C.boot,    0, -0.52, 0.025));
     root.add(g);
     return g;
   };
   const legL = makeLeg(-1);
   const legR = makeLeg( 1);
 
-  // ── TORSO / VEST ───────────────────────────────────────────
-  root.add(mk(CGEO.vest, C.vest, 0, 0.68, 0));
-
-  // Brystplate (lagsfarge-aksent)
+  // ── TORSO ──────────────────────────────────────────────────
+  root.add(mk(CGEO.vest,       C.vest,   0, 0.68, 0));
   root.add(mk(CGEO.chestPlate, C.accent, 0, 0.74, 0.16));
-
-  // Lommer/pouches på vest
-  [[-0.16,0.60,0.16],[0.16,0.60,0.16],[0,0.52,0.16]].forEach(([x,y,z]) =>
+  [[-0.15,0.60,0.16],[0.15,0.60,0.16],[0,0.50,0.16]].forEach(([x,y,z]) =>
     root.add(mk(CGEO.pouch, C.pouch, x, y, z))
   );
-
-  // Ryggsekk
-  root.add(mk(CGEO.pack,    C.vest,  0, 0.70, -0.20));
-  root.add(mk(CGEO.packFlap,C.pouch, 0, 0.84, -0.25));
+  root.add(mk(CGEO.pack,     C.vest,  0, 0.70, -0.20));
+  root.add(mk(CGEO.packFlap, C.pouch, 0, 0.84, -0.25));
 
   // ── ARMER ──────────────────────────────────────────────────
   [-1,1].forEach(side => {
     const xOff = side * 0.31;
     root.add(mk(CGEO.shoulder, C.uniform, xOff, 0.86, 0));
-    const ua = mk(CGEO.upperArm, C.uniform, xOff, 0.70, 0);
-    root.add(ua);
-    root.add(mk(CGEO.foreArm, C.uniform, xOff, 0.54, 0));
-    root.add(mk(CGEO.glove,   C.glove,   xOff, 0.42, 0));
+    root.add(mk(CGEO.upperArm, C.uniform, xOff, 0.70, 0));
+    root.add(mk(CGEO.foreArm,  C.uniform, xOff, 0.54, 0));
+    root.add(mk(CGEO.glove,    C.glove,   xOff, 0.42, 0));
   });
 
-  // ── GEVÆR (holdt av høyre arm, peker fremover/-Z) ──────────
+  // ── GEVÆR ──────────────────────────────────────────────────
   const rifle = new THREE.Group();
   rifle.position.set(0.30, 0.54, -0.08);
   rifle.rotation.set(0.18, 0, 0);
-  rifle.add(mk(CGEO.rifleBody,   0x1a1a1a));
-  rifle.add(mk(CGEO.rifleStock,  0x2a2018,  0,  0.01,  0.30));
-  rifle.add(mk(CGEO.rifleMag,    0x222222,  0, -0.10,  0.05));
-  rifle.add(mk(CGEO.rifleBarrel, 0x111111,  0,  0.015,-0.34));
-  rifle.add(mk(CGEO.rifleScope,  0x333333,  0,  0.07, -0.08));
+  rifle.add(mk(CGEO.rifleBody,    0x1a1a1a));
+  rifle.add(mk(CGEO.rifleStock,   0x2a2018,  0,  0.01,  0.30));
+  rifle.add(mk(CGEO.rifleMag,     0x222222,  0, -0.10,  0.05));
+  rifle.add(mk(CGEO.rifleBarrel,  0x111111,  0,  0.015,-0.34));
+  rifle.add(mk(CGEO.rifleScope,   0x333333,  0,  0.07, -0.08));
   root.add(rifle);
 
-  // ── HODE ───────────────────────────────────────────────────
+  // ── HODE – litt større for chibi-look ──────────────────────
   const headGrp = new THREE.Group();
-  headGrp.position.set(0, 1.12, 0);
+  headGrp.position.set(0, 1.14, 0);
+  headGrp.scale.setScalar(1.15); // større hode = mer cartoon
 
   headGrp.add(mk(CGEO.head, C.skin));
 
-  // Øyne (to svarte ovaler på fronten)
+  // Øyne – hvite med pupill for tydelig uttrykk
   [-0.095, 0.095].forEach(ex => {
-    headGrp.add(mk(CGEO.eye, C.eyeCol, ex, -0.02, 0.26));
+    headGrp.add(mk(CGEO.eye, C.eyeCol, ex, -0.02, 0.265));
+    headGrp.add(mk(new THREE.BoxGeometry(0.04, 0.06, 0.03), 0x111111, ex, -0.02, 0.275));
   });
 
-  // ── HJELM ──────────────────────────────────────────────────
-  // Stor kuppel
-  const dome = mk(CGEO.helmetDome, C.helmet, 0, 0.04, 0);
-  headGrp.add(dome);
-  // Hjelmkant (brim)
+  // Hjelm
+  headGrp.add(mk(CGEO.helmetDome, C.helmet, 0, 0.04, 0));
   headGrp.add(mk(CGEO.helmetBrim, C.helmet, 0, -0.09, 0));
-  // NVG-mount / sensor på toppen
-  headGrp.add(mk(new THREE.BoxGeometry(0.07,0.06,0.09), 0x333333, 0, 0.30, 0.10));
-
-  // Fiende: rød hodeskalle-plate på fronten av hjelmen
+  // Distinct front-merke per lag
   if (isEnemy) {
-    headGrp.add(mk(new THREE.BoxGeometry(0.16,0.13,0.04), 0x1a1a1a,  0,  0.06, 0.29));
-    headGrp.add(mk(new THREE.BoxGeometry(0.10,0.08,0.04), 0xcc1111,  0,  0.06, 0.32)); // rød skull-markering
-    // Røde sidepaneler på hjelmen
+    headGrp.add(mk(new THREE.BoxGeometry(0.14,0.11,0.04), 0x111111, 0,  0.06, 0.30));
+    headGrp.add(mk(new THREE.BoxGeometry(0.09,0.07,0.04), 0xff1744, 0,  0.06, 0.33));
     [-1,1].forEach(s =>
-      headGrp.add(mk(new THREE.BoxGeometry(0.04,0.08,0.10), 0x1a1a1a, s*0.30, 0.04, 0.10))
+      headGrp.add(mk(new THREE.BoxGeometry(0.04,0.09,0.12), 0x111111, s*0.30, 0.04, 0.08))
     );
+  } else {
+    // Blå spiller: liten gul stjerne på hjelmen
+    headGrp.add(mk(new THREE.BoxGeometry(0.10,0.10,0.04), 0xffee58, 0, 0.10, 0.30));
   }
 
   root.add(headGrp);
 
-  root.userData.legL = legL;
-  root.userData.legR = legR;
+  root.userData.legL    = legL;
+  root.userData.legR    = legR;
   root.userData.headGrp = headGrp;
-  root.scale.setScalar(CFG.soldierScale); // global skala – juster CFG.soldierScale
+  root.scale.setScalar(CFG.soldierScale);
   return root;
 }
 
