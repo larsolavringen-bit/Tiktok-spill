@@ -7,13 +7,13 @@
 
 const CFG = {
   startCrowd:     10,
-  runSpeed:       12,   // raskere grunnfart
+  runSpeed:       12,
   speedIncrement: 0.3,
   roadWidth:       9,
   laneWidth:      2.6,
   crowdSpread:    1.9,
-  gateInterval:   30,
-  enemyInterval:  75,
+  gateInterval:   18,   // kortere avstand mellom porter
+  enemyInterval:  45,   // fiender dukker opp raskere
   bossEveryN:      5,
   baseEnemyHP:    50,
   enemyHPScale:   1.6,
@@ -23,12 +23,12 @@ const CFG = {
   maxCrowd:       999,
   winAtWave:      20,
   bulletSpeed:    28,
-  shootInterval:  0.18,  // sekunder mellom skudd
+  shootInterval:  0.18,
   bulletDmg:       1,
   enemyShootInterval: 0.45,
   enemyBulletSpeed:   18,
-  enemyWalkSpeed:      5,   // fiende-marsjfart mot crowd
-  bossThreshold:      150,  // HP over dette = crowd stopper, boss marsjerer
+  enemyWalkSpeed:      5,
+  hardThreshold:      80,  // HP over dette = spilleren stopper, fienden marsjerer
 };
 
 // ── State ──────────────────────────────────────────────────
@@ -685,13 +685,13 @@ function loop(ts) {
     crowdX += (targetX-crowdX)*Math.min(1, dt*14);
     crowdGroup.position.x = crowdX;
 
-    // Sjekk om vi er i kamp og om det er boss
-    const combat  = inCombat();
-    const front   = closestEnemy();
-    const isBoss  = front && front.isBoss && front.hp > CFG.bossThreshold;
+    // Sjekk om vi er i kamp
+    const combat = inCombat();
+    const front  = closestEnemy();
+    // Vanskelig fiende: HP over terskel → spilleren stopper, fienden marsjerer mot dem
+    const hardEnemy = front && front.hp > CFG.hardThreshold;
 
-    // Crowd stopper mot høy-level boss, løper mot normale fiender
-    const crowdStopped = combat && isBoss;
+    const crowdStopped = combat && hardEnemy;
     const dz = crowdStopped ? 0 : speed * dt;
 
     updateRoad(dz);
