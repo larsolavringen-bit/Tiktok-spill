@@ -771,7 +771,7 @@ function rebuildCrowd() {
   crowdFigs.length = 0;
   const n    = Math.min(crowdSize, 80);
   const cols = Math.min(n, Math.ceil(Math.sqrt(n) * 1.3));
-  const spacingX = 0.75, spacingZ = 0.85;
+  const spacingX = 0.50, spacingZ = 0.58;
   for (let i = 0; i < n; i++) {
     const fig = createSoldier(0x1565c0);
     const col = i % cols;
@@ -1045,7 +1045,7 @@ function updateVehicles(dz, combat) {
       if (v.group.position.z > -80) {
         v.group.position.z += VEHICLE_SPEED * _dt;
       }
-      if (v.group.position.z > -8) v.group.position.z = -8;
+      if (v.group.position.z > -4) v.group.position.z = -4;
     }
     // Under kamp: tanken fryses HELT – ingenting endrer posisjonen
 
@@ -1433,27 +1433,30 @@ function updateBullets(dt) {
     }
 
     if (!hit) {
-      // Treff fiende?
+      // Treff KUN fremste fiende i kulens bane (høyest Z = nærmest spilleren)
+      let frontEn = null;
       for (const en of enemies) {
         if (!en.alive) continue;
         const dz = b.mesh.position.z - en.group.position.z;
         const dx = b.mesh.position.x - en.group.position.x;
         if (Math.abs(dz) < 2.8 && Math.abs(dx) < 3.2) {
-          en.hp -= currentWeapon().damage;
-          hit = true;
-          refreshEnemyHP(en);
-          if (en.hp <= 0) {
-            en.alive = false;
-            awardCoins(en);
-            scene.remove(en.group);
-            const idx = enemies.indexOf(en);
-            if (idx !== -1) enemies.splice(idx, 1);
-            if (en.isBoss) {
-              setTimeout(nextLevel, 600);
-            }
-            updateHUD();
+          if (!frontEn || en.group.position.z > frontEn.group.position.z) {
+            frontEn = en;
           }
-          break;
+        }
+      }
+      if (frontEn) {
+        frontEn.hp -= currentWeapon().damage;
+        hit = true;
+        refreshEnemyHP(frontEn);
+        if (frontEn.hp <= 0) {
+          frontEn.alive = false;
+          awardCoins(frontEn);
+          scene.remove(frontEn.group);
+          const idx = enemies.indexOf(frontEn);
+          if (idx !== -1) enemies.splice(idx, 1);
+          if (frontEn.isBoss) setTimeout(nextLevel, 600);
+          updateHUD();
         }
       }
     }
