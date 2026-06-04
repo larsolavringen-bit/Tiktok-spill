@@ -52,6 +52,7 @@ let lastPropTravel  = 0;
 let tanksThisLevel  = 0;  // maks 2 tanker per level
 let shootTimer      = 0;
 let enemyShootTimer = 0;
+let vehicleShootTimer = 0;
 
 // ── Penge- og butikk-system ────────────────────────────────
 let coins              = 0;
@@ -1533,6 +1534,17 @@ function shootEnemyBullets(en) {
   }
 }
 
+function shootVehicleBullets(v) {
+  const numShooters = Math.min(3, Math.max(1, Math.ceil(v.hp / v.maxHp * 3)));
+  for (let i = 0; i < numShooters; i++) {
+    const spread = (Math.random()-0.5) * 5.0;
+    const m = new THREE.Mesh(ebGeo, ebMat);
+    m.position.set(v.group.position.x + spread, 0.8, v.group.position.z);
+    scene.add(m);
+    activeEBullets.push({ mesh: m, vx: spread * 0.15, life: 3.0 });
+  }
+}
+
 function updateBullets(dt) {
   const pSpeed = CFG.bulletSpeed;
   const eSpeed = CFG.enemyBulletSpeed;
@@ -1989,7 +2001,7 @@ function startGame() {
   wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
   crowdX=0; targetX=0; travelZ=0;
   lastGateTravel=0; lastEnemyTravel=0; lastPropTravel=0;
-  shootTimer=0; enemyShootTimer=0;
+  shootTimer=0; enemyShootTimer=0; vehicleShootTimer=0;
 
   roadSegs.forEach((s,i) => s.position.set(0,0,-i*SEG));
   rebuildCrowd();
@@ -2106,6 +2118,16 @@ function loop(ts) {
       if (enemyShootTimer >= CFG.enemyShootInterval) {
         enemyShootTimer = 0;
         shootEnemyBullets(front);
+      }
+    }
+
+    // Tank skyter tilbake
+    const frontVehicle = vehicles.length ? vehicles[vehicles.length-1] : null;
+    if (frontVehicle && frontVehicle.group.position.z > -35) {
+      vehicleShootTimer += dt;
+      if (vehicleShootTimer >= CFG.enemyShootInterval) {
+        vehicleShootTimer = 0;
+        shootVehicleBullets(frontVehicle);
       }
     }
 
