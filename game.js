@@ -1507,7 +1507,7 @@ function updateBullets(dt) {
     b.mesh.position.z -= pSpeed * dt;
     b.mesh.position.x += b.vx;
 
-    // Treff gate?
+    // Treff gate? (kulen forbrukes IKKE – den fortsetter og kan treffe fiender bak)
     let hit = false;
     for (const gate of gates) {
       if (gate.passed) continue;
@@ -1516,7 +1516,8 @@ function updateBullets(dt) {
       if (Math.abs(gz) < 1.8 && Math.abs(gx) < 1.6) {
         gate.currentVal += 1;
         refreshGateLabel(gate);
-        hit = true; break;
+        // hit settes IKKE – kulen reiser videre
+        break;
       }
     }
 
