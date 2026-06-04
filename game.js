@@ -318,6 +318,118 @@ function updateSky(dt) {
   }
 }
 
+// ── Tank-eksplosjon (particle pool) ────────────────────────
+const EXPL_PART_COUNT = 20;
+const explParts = [];
+const explPartGeo = new THREE.SphereGeometry(0.18, 5, 4);
+
+for (let i = 0; i < EXPL_PART_COUNT; i++) {
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xff6600,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const m = new THREE.Mesh(explPartGeo, mat);
+  m.visible = false;
+  scene.add(m);
+  explParts.push({ mesh: m, vx: 0, vy: 0, vz: 0, life: 0, maxLife: 0 });
+}
+
+const explCoreGeo = new THREE.SphereGeometry(1, 8, 6);
+const explCores   = [];
+for (let i = 0; i < 4; i++) {
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xff4400,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const m = new THREE.Mesh(explCoreGeo, mat);
+  m.visible = false;
+  scene.add(m);
+  explCores.push({ mesh: m, timer: 0, duration: 0 });
+}
+
+let shakeTimer = 0;
+let shakeAmt   = 0;
+
+function spawnTankExplosion(x, y, z) {
+  // Kjernebluss
+  const colors = [0xff8800, 0xffcc00, 0xff3300];
+  explCores.forEach((c, idx) => {
+    c.mesh.position.set(x + (Math.random()-0.5)*0.8, y + idx * 0.6 + 0.5, z);
+    c.mesh.material.color.setHex(colors[idx % colors.length]);
+    c.mesh.scale.setScalar(1.5 + idx * 0.8);
+    c.mesh.visible  = true;
+    c.mesh.material.opacity = 0.9;
+    c.duration = 0.35 + idx * 0.12;
+    c.timer    = 0;
+  });
+
+  // Partikler
+  let used = 0;
+  for (const p of explParts) {
+    if (used >= EXPL_PART_COUNT) break;
+    const angle = Math.random() * Math.PI * 2;
+    const elev  = (Math.random() - 0.2) * Math.PI * 0.8;
+    const spd   = 4 + Math.random() * 8;
+    p.mesh.position.set(x, y + 0.5, z);
+    p.vx = Math.cos(angle) * Math.cos(elev) * spd;
+    p.vy = Math.sin(elev) * spd + 2;
+    p.vz = Math.sin(angle) * Math.cos(elev) * spd;
+    p.maxLife = 0.5 + Math.random() * 0.4;
+    p.life    = p.maxLife;
+    p.mesh.material.color.setHex(Math.random() < 0.5 ? 0xff6600 : 0xffcc00);
+    p.mesh.material.opacity = 1;
+    p.mesh.visible = true;
+    used++;
+  }
+
+  // Screen shake
+  shakeAmt   = 0.35;
+  shakeTimer = 0.45;
+}
+
+function updateExplosion(dt) {
+  // Kjernebluss
+  explCores.forEach(c => {
+    if (!c.mesh.visible) return;
+    c.timer += dt;
+    const t = c.timer / c.duration;
+    if (t >= 1) { c.mesh.visible = false; c.mesh.material.opacity = 0; return; }
+    c.mesh.material.opacity = (1 - t) * 0.85;
+    c.mesh.scale.setScalar((1.5 + c.timer * 8));
+  });
+
+  // Partikler
+  explParts.forEach(p => {
+    if (!p.mesh.visible) return;
+    p.life -= dt;
+    if (p.life <= 0) { p.mesh.visible = false; p.mesh.material.opacity = 0; return; }
+    const t = p.life / p.maxLife;
+    p.mesh.position.x += p.vx * dt;
+    p.mesh.position.y += p.vy * dt;
+    p.mesh.position.z += p.vz * dt;
+    p.vy -= 12 * dt; // gravitasjon
+    p.mesh.material.opacity = t * 0.9;
+    p.mesh.scale.setScalar(0.5 + t * 0.8);
+  });
+
+  // Screen shake
+  if (shakeTimer > 0) {
+    shakeTimer -= dt;
+    const s = shakeAmt * (shakeTimer > 0 ? shakeTimer / 0.45 : 0);
+    camera.position.x = Math.sin(Date.now() * 0.08) * s;
+    camera.position.y = 11 + Math.cos(Date.now() * 0.11) * s;
+  } else {
+    camera.position.x = 0;
+    camera.position.y = 11;
+  }
+}
+
 // ── Geometrier ─────────────────────────────────────────────
 // Delte geometrier for alle soldater (lav poly, god ytelse)
 const GEO = {
@@ -1422,6 +1534,7 @@ function updateBullets(dt) {
           if (v.hp <= 0) {
             v.alive = false;
             awardVehicleCoins(v);
+            spawnTankExplosion(v.group.position.x, 0.5, v.group.position.z);
             scene.remove(v.group);
             const idx = vehicles.indexOf(v);
             if (idx !== -1) vehicles.splice(idx, 1);
@@ -1852,19 +1965,27 @@ function triggerVictory() {
 
 // ── Bein-animasjon ─────────────────────────────────────────
 let legPhase = 0;
-function animateCrowd(dt) {
-  legPhase += dt*9;
-  crowdFigs.forEach((fig,i) => {
+function animateCrowd(dt, moving) {
+  if (moving) legPhase += dt * 9;
+  crowdFigs.forEach((fig, i) => {
     const { legL, legR } = fig.userData;
     if (!legL) return;
-    const sw = Math.sin(legPhase + i*0.5) * 0.4;
-    legL.rotation.x =  sw;
-    legR.rotation.x = -sw;
-    fig.position.y = Math.abs(Math.sin(legPhase+i)) * 0.07;
+    if (moving) {
+      // Løpe-animasjon
+      const sw = Math.sin(legPhase + i * 0.5) * 0.4;
+      legL.rotation.x =  sw;
+      legR.rotation.x = -sw;
+      fig.position.y = Math.abs(Math.sin(legPhase + i)) * 0.07;
+    } else {
+      // Stå stille i skyte-positur – bein nøytrale, liten fremlen
+      legL.rotation.x = 0.12;
+      legR.rotation.x = 0.12;
+      fig.position.y  = 0;
+    }
   });
-  // Fiender vaier litt
-  enemies.forEach((en,i) => {
-    en.group.rotation.y = Math.sin(legPhase*0.4+i)*0.06;
+  // Fiender vaier litt uansett
+  enemies.forEach((en, i) => {
+    en.group.rotation.y = Math.sin(legPhase * 0.4 + i) * 0.06;
   });
 }
 
@@ -1918,7 +2039,8 @@ function loop(ts) {
     }
 
     updateBullets(dt);
-    animateCrowd(dt);
+    updateExplosion(dt);
+    animateCrowd(dt, !combat);
     updateSky(dt);
 
     // Animer boss-ringer (pulserer og roterer)
