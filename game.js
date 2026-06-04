@@ -2106,7 +2106,7 @@ function loop(ts) {
     const wInterval = currentWeapon().interval;
     const hasNearTarget = enemies.some(e => e.group.position.z > -40)
                        || vehicles.some(v => v.group.position.z > -40)
-                       || gates.some(g => !g.passed && g.group.position.z > -40 && g.group.position.z < 8);
+                       || gates.some(g => !g.passed && g.group.position.z > -40 && g.group.position.z < 12);
     if (shootTimer >= wInterval && hasNearTarget) {
       shootTimer = 0;
       shootPlayerBullets();
