@@ -1016,9 +1016,9 @@ function updateVehicles(dz) {
       if (v.group.position.z > -80) {
         v.group.position.z += VEHICLE_SPEED * _dt;
       }
+      if (v.group.position.z > -8) v.group.position.z = -8;
     }
-    // Under kamp (dz=0): tank står stille
-    if (v.group.position.z > -8) v.group.position.z = -8;
+    // Under kamp (dz=0): gjør ingenting – tanken fryses helt
 
     // Roter turret sakte
     if (v.group.userData.turret) {
