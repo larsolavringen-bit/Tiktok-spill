@@ -1235,7 +1235,8 @@ function closestEnemy() {
 
 // Er vi i kamp? (fiende innen kampsonen)
 function inCombat() {
-  return enemies.some(en => en.group.position.z > -10);
+  return enemies.some(en => en.group.position.z > -10)
+      || vehicles.some(v => v.group.position.z > -20);
 }
 
 function updateEnemies(dz) {
