@@ -96,6 +96,7 @@ const WEAPON_TIERS = [
 ];
 let weaponTier = 0;
 function currentWeapon() { return WEAPON_TIERS[Math.min(weaponTier, WEAPON_TIERS.length-1)]; }
+function playerDamage() { return playerDamage() * SOLDIER_TIERS[soldierTier].dmgMult; }
 function upgradeWeapon() {
   if (weaponTier < WEAPON_TIERS.length-1) weaponTier++;
   const w = currentWeapon();
@@ -915,25 +916,55 @@ for (let z = -8; z > -300; z -= PROP_INTERVAL) spawnPropGroup(z);
 
 // ── Crowd ──────────────────────────────────────────────────
 const crowdGroup = new THREE.Group();
-crowdGroup.position.z = 8; // crowd plassert lengre bak mot kamera
+crowdGroup.position.z = 8;
 scene.add(crowdGroup);
 const crowdFigs = [];
+
+// Soldat-tiers: hvert tier har farge og skade-multiplikator
+const SOLDIER_TIERS = [
+  { color: 0x1565c0, dmgMult: 1,  name: 'Soldat'    }, // blå
+  { color: 0x6a1b9a, dmgMult: 2,  name: 'Veteran'   }, // lilla
+  { color: 0xe65100, dmgMult: 4,  name: 'Elite'     }, // oransje
+  { color: 0xb71c1c, dmgMult: 8,  name: 'Kommando'  }, // rød
+  { color: 0x004d40, dmgMult: 16, name: 'Legende'   }, // mørk grønn
+];
+let soldierTier = 0; // nåværende tier-indeks
+
+// Sjekk om crowdSize >= 100 og oppgrader hvis ja
+function checkTierUpgrade() {
+  while (crowdSize >= 100) {
+    const nextTier = Math.min(soldierTier + 1, SOLDIER_TIERS.length - 1);
+    crowdSize = crowdSize - 100 + 20;
+    soldierTier = nextTier;
+    showFloatingText(`⬆ ${SOLDIER_TIERS[soldierTier].name}!`, '#ce93d8');
+  }
+}
 
 function rebuildCrowd() {
   while (crowdGroup.children.length) crowdGroup.remove(crowdGroup.children[0]);
   crowdFigs.length = 0;
-  const n    = Math.min(crowdSize, 80);
-  const cols = Math.min(n, Math.ceil(Math.sqrt(n) * 1.3));
-  const spacingX = 0.50, spacingZ = 0.58;
-  for (let i = 0; i < n; i++) {
-    const fig = createSoldier(0x1565c0);
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    fig.position.set(
-      (col - (cols - 1) / 2) * spacingX,
-      0,
-      row * spacingZ
-    );
+  const n = Math.min(crowdSize, 80);
+  const tierColor = SOLDIER_TIERS[soldierTier].color;
+  const spacing = 0.54;
+
+  // Rund/sirkulær formasjon: fyll konsentriske ringer
+  const positions = [];
+  if (n > 0) positions.push({ x: 0, z: 0 }); // senter
+  let ring = 1;
+  while (positions.length < n) {
+    const radius = ring * spacing;
+    const circumference = 2 * Math.PI * radius;
+    const count = Math.floor(circumference / spacing);
+    for (let j = 0; j < count && positions.length < n; j++) {
+      const angle = (j / count) * Math.PI * 2;
+      positions.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius * 0.7 });
+    }
+    ring++;
+  }
+
+  for (let i = 0; i < positions.length; i++) {
+    const fig = createSoldier(tierColor);
+    fig.position.set(positions[i].x, 0, positions[i].z);
     crowdGroup.add(fig);
     crowdFigs.push(fig);
   }
@@ -979,9 +1010,7 @@ function opStr(op, val) {
 
 // ── Porter + Tank – tank på random X, porter ved siden ────
 function gateStartVal(variant) {
-  // Begge porter starter røde (negative). variant 0 = stor, variant 1 = liten.
-  const base = Math.max(20, 20 + Math.floor(level * 5));
-  return variant === 0 ? -base : -Math.max(10, Math.floor(base * 0.5));
+  return -(40 + Math.floor(Math.random() * 41)); // tilfeldig mellom -40 og -80
 }
 
 function refreshGateLabel(gate) {
@@ -1064,6 +1093,7 @@ function updateGates(dz) {
         gate.passed   = true;
         const before  = crowdSize;
         crowdSize     = Math.max(CFG.minCrowd, Math.min(CFG.maxCrowd, crowdSize + gate.currentVal));
+        checkTierUpgrade();
         rebuildCrowd();
         updateHUD();
         const txt = gate.currentVal >= 0 ? `+${gate.currentVal}` : `${gate.currentVal}`;
@@ -1672,7 +1702,7 @@ function updateBullets(dt) {
       const gz = b.mesh.position.z - gate.group.position.z;
       const gx = b.mesh.position.x - gate.xPos;
       if (Math.abs(gz) < 1.8 && Math.abs(gx) < 1.6) {
-        gate.currentVal += 1;
+        gate.currentVal = Math.min(100, gate.currentVal + 1);
         refreshGateLabel(gate);
         // hit settes IKKE – kulen reiser videre
         break;
@@ -1686,7 +1716,7 @@ function updateBullets(dt) {
         const vz = b.mesh.position.z - v.group.position.z;
         const vx = b.mesh.position.x - v.group.position.x;
         if (Math.abs(vz) < 3.0 && Math.abs(vx) < 1.8) {
-          v.hp -= currentWeapon().damage;
+          v.hp -= playerDamage();
           hit = true;
           refreshVehicleHP(v);
           if (v.hp <= 0) {
@@ -1710,7 +1740,7 @@ function updateBullets(dt) {
         const bz = b.mesh.position.z - bd.group.position.z;
         const bx = b.mesh.position.x - bd.group.position.x;
         if (Math.abs(bz) < 3.5 && Math.abs(bx) < 2.5) {
-          bd.hp -= currentWeapon().damage;
+          bd.hp -= playerDamage();
           hit = true;
           refreshBulldozerHP(bd);
           if (bd.hp <= 0) {
@@ -1741,7 +1771,7 @@ function updateBullets(dt) {
         }
       }
       if (frontEn) {
-        frontEn.hp -= currentWeapon().damage;
+        frontEn.hp -= playerDamage();
         hit = true;
         refreshEnemyHP(frontEn);
         if (frontEn.hp <= 0) {
@@ -2163,6 +2193,7 @@ function startGame() {
   weaponTier = 0;
   vehicles.forEach(v => scene.remove(v.group)); vehicles.length=0;
   crowdSize = SOLDIER_UPGRADES[startSoldiersLevel].soldiers;
+  soldierTier = 0;
   level=1; levelParams=getLevelParams(1);
   speed=levelParams.worldSpeed;
   wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
