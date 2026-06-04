@@ -937,10 +937,10 @@ function opStr(op, val) {
 }
 
 // ── Porter + Tank – tank på random X, porter ved siden ────
-function gateStartVal(isGood) {
-  // Grønn port gir nok soldater til å gjøre en forskjell
-  const base = Math.max(5, 5 + Math.floor(level * 2.5));
-  return isGood ? base : -Math.max(2, Math.floor(base * 0.6));
+function gateStartVal(variant) {
+  // Begge porter starter røde (negative). variant 0 = stor, variant 1 = liten.
+  const base = Math.max(6, 6 + Math.floor(level * 2));
+  return variant === 0 ? -base : -Math.max(3, Math.floor(base * 0.5));
 }
 
 function refreshGateLabel(gate) {
@@ -960,25 +960,24 @@ function spawnGates(atZ) {
   const tankPositions = [-2.8, 0, 2.8];
   const tankX = tankPositions[Math.floor(Math.random() * tankPositions.length)];
 
-  // Porter på hver side av tanken (2.6 enheter til siden)
+  // Begge porter starter røde med ulike negative tall (variant 0 = stor, 1 = liten)
   const gateOffset = 2.6;
-  const greenRight = Math.random() < 0.5;
   const sides = [
-    { xPos: tankX - gateOffset, isGood: !greenRight },
-    { xPos: tankX + gateOffset, isGood:  greenRight },
+    { xPos: tankX - gateOffset, variant: 0 },
+    { xPos: tankX + gateOffset, variant: 1 },
   ];
 
-  sides.forEach(({ xPos, isGood }) => {
+  sides.forEach(({ xPos, variant }) => {
     // Klamp porter innenfor veien (alltid synlig og skytbar)
     const clampedX = Math.max(-(CFG.roadWidth/2 - 1.5), Math.min(CFG.roadWidth/2 - 1.5, xPos));
-    const startVal = gateStartVal(isGood);
-    const bg       = isGood ? '#2e7d32' : '#c62828';
-    const text     = isGood ? `+${startVal}` : `${startVal}`;
+    const startVal = gateStartVal(variant); // alltid negativt
+    const bg   = '#c62828';
+    const text = `${startVal}`;
 
     const g = new THREE.Group();
 
     const faceMat = new THREE.MeshLambertMaterial({
-      color: isGood ? 0x43a047 : 0xe53935,
+      color: 0xe53935,
       transparent: true, opacity: 0.85
     });
     const face = new THREE.Mesh(GEO.gate, faceMat);
@@ -1002,7 +1001,7 @@ function spawnGates(atZ) {
     scene.add(g);
     gates.push({
       group: g, faceMesh: face, labelMesh: lbl,
-      currentVal: startVal, isGood, xPos: clampedX, passed: false
+      currentVal: startVal, xPos: clampedX, passed: false
     });
   });
 
@@ -1157,7 +1156,7 @@ function updateVehicles(dz, combat) {
       if (v.group.position.z > -80) {
         v.group.position.z += VEHICLE_SPEED * _dt;
       }
-      if (v.group.position.z > -4) v.group.position.z = -4;
+      if (v.group.position.z > -2) v.group.position.z = -2;
     }
     // Under kamp: tanken fryses HELT – ingenting endrer posisjonen
 
@@ -1391,7 +1390,7 @@ function updateEnemies(dz) {
     }
 
     // Stopp fienden på frontlinjen
-    if (en.group.position.z > -6) en.group.position.z = -6;
+    if (en.group.position.z > -3) en.group.position.z = -3;
 
     if (en.group.position.z > 30) {
       scene.remove(en.group);
@@ -2010,10 +2009,13 @@ function loop(ts) {
     updateEnemies(combat ? 0 : dz);
     if (!combat) checkSpawns(dz);
 
-    // Auto-skyting – bruk currentWeapon().interval, skyt på fiender OG kjøretøy
+    // Auto-skyting – skyt kun når det finnes mål innen rekkevidde
     shootTimer += dt;
     const wInterval = currentWeapon().interval;
-    if (shootTimer >= wInterval && (enemies.length > 0 || vehicles.length > 0)) {
+    const hasNearTarget = enemies.some(e => e.group.position.z > -40)
+                       || vehicles.some(v => v.group.position.z > -40)
+                       || gates.some(g => !g.passed && g.group.position.z > -40 && g.group.position.z < 8);
+    if (shootTimer >= wInterval && hasNearTarget) {
       shootTimer = 0;
       shootPlayerBullets();
     }
