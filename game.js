@@ -864,8 +864,8 @@ function spawnGates(atZ) {
     });
   });
 
-  // Tank spawner maks 2 ganger per level
-  if (tanksThisLevel < 2) {
+  // Tank spawner maks 2 ganger per level, og ikke før level 3
+  if (level >= 3 && tanksThisLevel < 2) {
     tanksThisLevel++;
     const vhp = Math.round((200 + level * 80) * (0.85 + Math.random()*0.3));
     spawnVehicle(atZ, vhp, tankX);
