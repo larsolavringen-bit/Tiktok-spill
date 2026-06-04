@@ -99,8 +99,8 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.shadowMap.enabled = true;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xd4b896);
-scene.fog        = new THREE.Fog(0xc8a97a, 30, 85);
+scene.background = new THREE.Color(0x1a1a2e);
+scene.fog        = new THREE.Fog(0x2a2030, 35, 100);
 
 const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 150);
 camera.position.set(0, 11, 18);
@@ -116,13 +116,178 @@ function onResize() {
 window.addEventListener('resize', onResize);
 onResize();
 
-scene.add(new THREE.AmbientLight(0xfff0d0, 0.75));
-const sun = new THREE.DirectionalLight(0xffd580, 1.1);
+// ── Krigslys ───────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffd0a0, 0.55));
+const sun = new THREE.DirectionalLight(0xff9944, 0.9);
 sun.position.set(15, 25, 8);
 sun.castShadow = true;
 Object.assign(sun.shadow.camera, { left:-22, right:22, top:22, bottom:-22, near:0.5, far:80 });
 sun.shadow.mapSize.set(1024, 1024);
 scene.add(sun);
+// Svakt blålig motlys fra horisonten
+const rimLight = new THREE.DirectionalLight(0x4466aa, 0.3);
+rimLight.position.set(-10, 5, -30);
+scene.add(rimLight);
+
+// ── Krigshimmel ────────────────────────────────────────────
+// Sky-dome (halvkule som bakgrunn, mørkgrå-blå gradient-look via farge)
+const skyGeo  = new THREE.SphereGeometry(130, 16, 8, 0, Math.PI*2, 0, Math.PI*0.55);
+const skyMat  = new THREE.MeshBasicMaterial({ color: 0x1c1828, side: THREE.BackSide });
+const skyDome = new THREE.Mesh(skyGeo, skyMat);
+skyDome.position.y = -10;
+scene.add(skyDome);
+
+// Horisontal glødstribe (varm oransje langt nede – som ild i horisonten)
+const horizonGeo = new THREE.SphereGeometry(128, 16, 4, 0, Math.PI*2, Math.PI*0.44, Math.PI*0.08);
+const horizonMat = new THREE.MeshBasicMaterial({ color: 0x6b2a00, side: THREE.BackSide, transparent: true, opacity: 0.7 });
+scene.add(new THREE.Mesh(horizonGeo, horizonMat));
+
+// ── Skyer (pool av sky-puffer) ────────────────────────────
+const CLOUD_COUNT = 22;
+const clouds = [];
+
+function makeCloudPuff(x, y, z, scale) {
+  const geo = new THREE.SphereGeometry(1, 6, 5);
+  const mat = new THREE.MeshLambertMaterial({
+    color: 0x2a2535,
+    transparent: true,
+    opacity: 0.82,
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.scale.set(scale * (0.8 + Math.random()*0.5), scale * 0.55, scale * (0.7 + Math.random()*0.4));
+  m.position.set(x, y, z);
+  return m;
+}
+
+function makeCloud() {
+  const g = new THREE.Group();
+  const puffs = 4 + Math.floor(Math.random()*4);
+  for (let i = 0; i < puffs; i++) {
+    const sc = 3.5 + Math.random()*4;
+    g.add(makeCloudPuff(
+      (Math.random()-0.5)*sc*1.8,
+      (Math.random()-0.5)*sc*0.4,
+      (Math.random()-0.5)*sc*0.6,
+      sc
+    ));
+  }
+  return g;
+}
+
+// Fordel skyer jevnt over himmelen
+for (let i = 0; i < CLOUD_COUNT; i++) {
+  const c = makeCloud();
+  const angle  = (i / CLOUD_COUNT) * Math.PI * 2;
+  const dist   = 30 + Math.random() * 70;
+  const height = 18 + Math.random() * 30;
+  c.position.set(
+    Math.cos(angle) * dist,
+    height,
+    Math.sin(angle) * dist - 40
+  );
+  c.userData.driftX = (Math.random()-0.5) * 0.8; // drift-fart
+  scene.add(c);
+  clouds.push(c);
+}
+
+// ── Eksplosjons-gløder (pool, additivt blended) ───────────
+const GLOW_POOL_SIZE = 8;
+const glowPool = [];
+const glowGeo  = new THREE.SphereGeometry(1, 7, 5);
+
+for (let i = 0; i < GLOW_POOL_SIZE; i++) {
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xff6600,
+    transparent: true,
+    opacity: 0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+  const m = new THREE.Mesh(glowGeo, mat);
+  m.visible = false;
+  scene.add(m);
+  glowPool.push({ mesh: m, timer: 0, duration: 0 });
+}
+
+let nextExplosionIn = 0.5 + Math.random() * 2.0;
+
+function triggerSkyExplosion() {
+  const g = glowPool.find(g => !g.mesh.visible);
+  if (!g) return;
+  // Tilfeldig posisjon i himmelen, litt bak/oppe
+  const angle = Math.random() * Math.PI * 2;
+  const dist  = 25 + Math.random() * 60;
+  g.mesh.position.set(
+    Math.cos(angle) * dist,
+    20 + Math.random() * 28,
+    Math.sin(angle) * dist - 50
+  );
+  const sc = 5 + Math.random() * 10;
+  g.mesh.scale.setScalar(sc);
+  g.duration = 0.4 + Math.random() * 0.7;
+  g.timer = 0;
+  g.mesh.visible = true;
+  // Veksle mellom gult, oransje og rødt
+  const colors = [0xff8800, 0xffcc00, 0xff3300, 0xffaa00];
+  g.mesh.material.color.setHex(colors[Math.floor(Math.random()*colors.length)]);
+}
+
+// Røyksøyler (statiske, i bakgrunnen)
+for (let i = 0; i < 4; i++) {
+  const smokeGeo = new THREE.CylinderGeometry(0.5 + i*0.3, 0.2, 12 + i*4, 5);
+  const smokeMat = new THREE.MeshBasicMaterial({
+    color: 0x332222,
+    transparent: true,
+    opacity: 0.18 + Math.random()*0.12,
+  });
+  const s = new THREE.Mesh(smokeGeo, smokeMat);
+  s.position.set(
+    (Math.random()-0.5)*120,
+    14 + i*3,
+    -60 - Math.random()*40
+  );
+  s.rotation.x = (Math.random()-0.5)*0.15;
+  scene.add(s);
+}
+
+function updateSky(dt) {
+  // Drift skyer sakte sidelengs
+  clouds.forEach(c => {
+    c.position.x += c.userData.driftX * dt;
+    // Wrap rundt når de drifter for langt
+    if (c.position.x > 110)  c.position.x = -110;
+    if (c.position.x < -110) c.position.x =  110;
+  });
+
+  // Eksplosjons-glød animasjon
+  glowPool.forEach(g => {
+    if (!g.mesh.visible) return;
+    g.timer += dt;
+    const t = g.timer / g.duration;
+    if (t >= 1) {
+      g.mesh.visible = false;
+      g.mesh.material.opacity = 0;
+      return;
+    }
+    // Fade opp raskt, fade ut saktere
+    const opacity = t < 0.25
+      ? (t / 0.25) * 0.55
+      : (1 - (t - 0.25) / 0.75) * 0.55;
+    g.mesh.material.opacity = opacity;
+  });
+
+  // Trigger nye eksplosjoner med tilfeldige intervaller
+  nextExplosionIn -= dt;
+  if (nextExplosionIn <= 0) {
+    triggerSkyExplosion();
+    // Av og til cluster (2-3 på rad)
+    if (Math.random() < 0.35) {
+      setTimeout(() => triggerSkyExplosion(), 180 + Math.random()*200);
+      if (Math.random() < 0.4) setTimeout(() => triggerSkyExplosion(), 380 + Math.random()*250);
+    }
+    nextExplosionIn = 1.0 + Math.random() * 3.5;
+  }
+}
 
 // ── Geometrier ─────────────────────────────────────────────
 // Delte geometrier for alle soldater (lav poly, god ytelse)
@@ -1515,6 +1680,7 @@ function loop(ts) {
 
     updateBullets(dt);
     animateCrowd(dt);
+    updateSky(dt);
 
     // Animer boss-ringer (pulserer og roterer)
     enemies.forEach(en => {
