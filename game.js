@@ -1008,13 +1008,15 @@ function updateVehicles(dz) {
   for (let i = vehicles.length-1; i >= 0; i--) {
     const v = vehicles[i];
 
-    // Kun flytt med verden når ingen kamp – aldri bakover
-    if (dz > 0) v.group.position.z += dz;
-
-    // Kjør mot spilleren – men aldri forbi frontlinjen
-    if (v.group.position.z > -60 && dz === 0 || v.group.position.z > -60 && v.group.position.z < -8) {
-      v.group.position.z += VEHICLE_SPEED * _dt;
+    if (dz > 0) {
+      // Verden scroller – flytt tanken med
+      v.group.position.z += dz;
+      // Kjør også fremover mot spilleren når ikke i kamp
+      if (v.group.position.z > -80) {
+        v.group.position.z += VEHICLE_SPEED * _dt;
+      }
     }
+    // Under kamp (dz=0): tank står stille
     if (v.group.position.z > -8) v.group.position.z = -8;
 
     // Roter turret sakte
