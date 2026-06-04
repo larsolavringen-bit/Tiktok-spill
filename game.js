@@ -9,7 +9,7 @@
 const WORLD_SPEED = 14; // enheter per sekund – øker svakt per bølge
 
 const CFG = {
-  startCrowd:     10,
+  startCrowd:     1,
   runSpeed:       WORLD_SPEED,
   speedIncrement: 0.15,
   roadWidth:      14,
@@ -84,10 +84,10 @@ function getLevelParams(lvl) {
   const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
   return {
     worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
-    wavesBeforeBoss: Math.max(3, 3 + Math.floor(n * 0.8)),
-    enemyHP:         Math.round((30 + n * 15) * (1 + rnd())),
-    enemyCount:      Math.min(8 + Math.floor(n * 2.0), CFG.maxEnemyCount),
-    bossHP:          Math.round((500 + n * 200) * (1 + rnd())),
+    wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
+    enemyHP:         Math.round((8 + n * 6) * (1 + rnd())),
+    enemyCount:      Math.min(4 + Math.floor(n * 1.2), CFG.maxEnemyCount),
+    bossHP:          Math.round((60 + n * 40) * (1 + rnd())),
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
@@ -1007,14 +1007,15 @@ function spawnVehicle(atZ, hp, xPos=0) {
 function updateVehicles(dz) {
   for (let i = vehicles.length-1; i >= 0; i--) {
     const v = vehicles[i];
-    v.group.position.z += dz;
 
-    // Vognen kjører mot spilleren når den er i nærheten
-    if (v.group.position.z > -50) {
+    // Kun flytt med verden når ingen kamp – aldri bakover
+    if (dz > 0) v.group.position.z += dz;
+
+    // Kjør mot spilleren – men aldri forbi frontlinjen
+    if (v.group.position.z > -60 && dz === 0 || v.group.position.z > -60 && v.group.position.z < -8) {
       v.group.position.z += VEHICLE_SPEED * _dt;
     }
-    // Stopp rett foran crowd
-    if (v.group.position.z > -4) v.group.position.z = -4;
+    if (v.group.position.z > -8) v.group.position.z = -8;
 
     // Roter turret sakte
     if (v.group.userData.turret) {
