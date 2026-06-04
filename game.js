@@ -940,31 +940,29 @@ function checkTierUpgrade() {
   }
 }
 
+// Pre-genererte ring-posisjoner for opptil 80 soldater (unngår while-løkke per frame)
+const RING_POSITIONS = (() => {
+  const spacing = 0.54;
+  const pos = [{ x: 0, z: 0 }];
+  for (let ring = 1; pos.length < 80; ring++) {
+    const radius = ring * spacing;
+    const count = Math.max(1, Math.floor(2 * Math.PI * radius / spacing));
+    for (let j = 0; j < count && pos.length < 80; j++) {
+      const angle = (j / count) * Math.PI * 2;
+      pos.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius * 0.7 });
+    }
+  }
+  return pos;
+})();
+
 function rebuildCrowd() {
   while (crowdGroup.children.length) crowdGroup.remove(crowdGroup.children[0]);
   crowdFigs.length = 0;
   const n = Math.min(crowdSize, 80);
-  const tierColor = SOLDIER_TIERS[soldierTier].color;
-  const spacing = 0.54;
-
-  // Rund/sirkulær formasjon: fyll konsentriske ringer
-  const positions = [];
-  if (n > 0) positions.push({ x: 0, z: 0 }); // senter
-  let ring = 1;
-  while (positions.length < n) {
-    const radius = ring * spacing;
-    const circumference = 2 * Math.PI * radius;
-    const count = Math.floor(circumference / spacing);
-    for (let j = 0; j < count && positions.length < n; j++) {
-      const angle = (j / count) * Math.PI * 2;
-      positions.push({ x: Math.cos(angle) * radius, z: Math.sin(angle) * radius * 0.7 });
-    }
-    ring++;
-  }
-
-  for (let i = 0; i < positions.length; i++) {
+  const tierColor = SOLDIER_TIERS[Math.min(soldierTier, SOLDIER_TIERS.length - 1)].color;
+  for (let i = 0; i < n; i++) {
     const fig = createSoldier(tierColor);
-    fig.position.set(positions[i].x, 0, positions[i].z);
+    fig.position.set(RING_POSITIONS[i].x, 0, RING_POSITIONS[i].z);
     crowdGroup.add(fig);
     crowdFigs.push(fig);
   }
