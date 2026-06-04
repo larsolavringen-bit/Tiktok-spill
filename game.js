@@ -53,6 +53,34 @@ let tanksThisLevel  = 0;  // maks 2 tanker per level
 let shootTimer      = 0;
 let enemyShootTimer = 0;
 
+// ── Penge- og butikk-system ────────────────────────────────
+let coins              = 0;
+let startSoldiersLevel = 0; // oppgraderingsnivå for soldater
+let bombCount          = 0; // antall bomber spilleren har
+
+const SOLDIER_UPGRADES = [
+  { soldiers: 1,  cost: 0    }, // nivå 0 – standard
+  { soldiers: 3,  cost: 60   },
+  { soldiers: 6,  cost: 150  },
+  { soldiers: 10, cost: 300  },
+  { soldiers: 15, cost: 600  },
+  { soldiers: 20, cost: 1200 },
+];
+const BOMB_COST   = 80;
+const BOMB_DAMAGE = 300;
+
+function loadSave() {
+  coins              = parseInt(localStorage.getItem('cr_coins')    || '0');
+  startSoldiersLevel = parseInt(localStorage.getItem('cr_soldiers') || '0');
+  bombCount          = parseInt(localStorage.getItem('cr_bombs')    || '0');
+}
+function savePersist() {
+  localStorage.setItem('cr_coins',    coins);
+  localStorage.setItem('cr_soldiers', startSoldiersLevel);
+  localStorage.setItem('cr_bombs',    bombCount);
+}
+loadSave();
+
 // ── Våpen-tiers ────────────────────────────────────────────
 const WEAPON_TIERS = [
   { damage:2, interval:0.14, color:0xffee58, name:'Pistol'       },
@@ -1392,6 +1420,7 @@ function updateBullets(dt) {
           refreshVehicleHP(v);
           if (v.hp <= 0) {
             v.alive = false;
+            awardVehicleCoins(v);
             scene.remove(v.group);
             const idx = vehicles.indexOf(v);
             if (idx !== -1) vehicles.splice(idx, 1);
@@ -1414,6 +1443,7 @@ function updateBullets(dt) {
           refreshEnemyHP(en);
           if (en.hp <= 0) {
             en.alive = false;
+            awardCoins(en);
             scene.remove(en.group);
             const idx = enemies.indexOf(en);
             if (idx !== -1) enemies.splice(idx, 1);
@@ -1482,6 +1512,103 @@ function showFloatingText(text, color) {
     div.style.transform = 'translateX(-50%) translateY(-40px)';
   });
   setTimeout(() => div.remove(), 900);
+}
+
+// ── Penge-animasjon ───────────────────────────────────────
+function spawnCoinAnim(worldX, worldZ, amount) {
+  // Konverter 3D-posisjon til skjerm-koordinater
+  const vec = new THREE.Vector3(worldX, 2.0, worldZ);
+  vec.project(camera);
+  const sx = (vec.x *  0.5 + 0.5) * window.innerWidth;
+  const sy = (vec.y * -0.5 + 0.5) * window.innerHeight;
+
+  const el = document.createElement('div');
+  el.className   = 'coin-anim';
+  el.textContent = `+${amount}🪙`;
+  el.style.left  = sx + 'px';
+  el.style.top   = sy + 'px';
+  document.body.appendChild(el);
+
+  // Hent posisjon til mynt-telleren
+  const coinEl = document.getElementById('coin-display');
+  const rect   = coinEl ? coinEl.getBoundingClientRect() : { left: window.innerWidth/2, top: 20, width: 60, height: 24 };
+  const tx = rect.left + rect.width / 2;
+  const ty = rect.top  + rect.height / 2;
+
+  requestAnimationFrame(() => {
+    el.style.left      = tx + 'px';
+    el.style.top       = ty + 'px';
+    el.style.opacity   = '0';
+    el.style.transform = 'translate(-50%,-50%) scale(0.4)';
+  });
+
+  setTimeout(() => {
+    el.remove();
+    coins += amount;
+    savePersist();
+    updateCoinDisplay(true);
+  }, 680);
+}
+
+function awardCoins(en) {
+  const base   = en.isBoss ? Math.max(30, Math.round(en.maxHp * 0.6))
+                           : Math.max(8,  Math.round(en.maxHp * 0.4));
+  spawnCoinAnim(en.group.position.x, en.group.position.z, base);
+}
+
+function awardVehicleCoins(v) {
+  const reward = Math.max(25, Math.round(v.maxHp * 0.2));
+  spawnCoinAnim(v.group.position.x, v.group.position.z, reward);
+}
+
+function updateCoinDisplay(animate) {
+  const el = document.getElementById('coin-count');
+  const el2 = document.getElementById('shop-coin-count');
+  if (el)  el.textContent  = coins;
+  if (el2) el2.textContent = coins;
+  if (animate && el) {
+    el.style.transform = 'scale(1.4)';
+    setTimeout(() => { el.style.transform = ''; }, 200);
+  }
+}
+
+// ── Bombe ─────────────────────────────────────────────────
+function useBomb() {
+  if (bombCount <= 0 || state !== 'playing') return;
+  bombCount--;
+  savePersist();
+  updateBombBtn();
+
+  // Skade alle fiender på skjermen
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const en = enemies[i];
+    en.hp -= BOMB_DAMAGE;
+    if (en.hp <= 0) {
+      en.alive = false;
+      awardCoins(en);
+      scene.remove(en.group);
+      enemies.splice(i, 1);
+      if (en.isBoss) setTimeout(nextLevel, 600);
+    } else {
+      refreshEnemyHP(en);
+    }
+  }
+  updateHUD();
+  triggerSkyExplosion();
+  triggerSkyExplosion();
+  showFloatingText('💥 BOMBE!', '#ff6600');
+}
+
+function updateBombBtn() {
+  const btn = document.getElementById('bomb-btn');
+  const cnt = document.getElementById('bomb-count');
+  if (!btn) return;
+  if (bombCount > 0 && state === 'playing') {
+    btn.classList.remove('hidden');
+    cnt.textContent = bombCount;
+  } else {
+    btn.classList.add('hidden');
+  }
 }
 
 // ── Spawn-system ───────────────────────────────────────────
@@ -1561,7 +1688,75 @@ function updateHUD() {
   const pct   = Math.round(Math.min(done / total, 1) * 100);
   document.getElementById('progress-bar-fill').style.width = pct + '%';
   document.getElementById('progress-pct').textContent = pct + '%';
+
+  updateCoinDisplay(false);
+  updateBombBtn();
 }
+
+// ── Butikk-logikk ─────────────────────────────────────────
+function openShop(fromScreen) {
+  document.querySelectorAll('.overlay').forEach(el => el.classList.add('hidden'));
+  document.getElementById('shop-screen').classList.remove('hidden');
+  refreshShopUI();
+}
+
+function closeShop() {
+  document.getElementById('shop-screen').classList.add('hidden');
+  document.getElementById('start-screen').classList.remove('hidden');
+}
+
+function refreshShopUI() {
+  updateCoinDisplay(false);
+
+  // Soldat-oppgradering
+  const nextLevel = startSoldiersLevel + 1;
+  const buySolBtn = document.getElementById('buy-soldiers-btn');
+  const solDesc   = document.getElementById('soldiers-desc');
+  const solCost   = document.getElementById('soldiers-cost');
+
+  if (nextLevel >= SOLDIER_UPGRADES.length) {
+    // Maks nivå
+    solDesc.textContent = `Maks! Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} soldater`;
+    buySolBtn.disabled  = true;
+    buySolBtn.innerHTML = 'MAKS';
+  } else {
+    const up = SOLDIER_UPGRADES[nextLevel];
+    solDesc.textContent = `Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} → ${up.soldiers} soldater`;
+    solCost.textContent = up.cost;
+    buySolBtn.disabled  = coins < up.cost;
+  }
+
+  // Bombe
+  const buyBombBtn = document.getElementById('buy-bomb-btn');
+  document.getElementById('bomb-desc').textContent = `Du har ${bombCount} bombe${bombCount !== 1 ? 'r' : ''}`;
+  buyBombBtn.disabled = coins < BOMB_COST;
+}
+
+document.getElementById('shop-open-btn').addEventListener('click', openShop);
+document.getElementById('shop-close-btn').addEventListener('click', closeShop);
+document.getElementById('gameover-shop-btn').addEventListener('click', openShop);
+document.getElementById('victory-shop-btn').addEventListener('click', openShop);
+
+document.getElementById('buy-soldiers-btn').addEventListener('click', () => {
+  const nextLvl = startSoldiersLevel + 1;
+  if (nextLvl >= SOLDIER_UPGRADES.length) return;
+  const cost = SOLDIER_UPGRADES[nextLvl].cost;
+  if (coins < cost) return;
+  coins -= cost;
+  startSoldiersLevel = nextLvl;
+  savePersist();
+  refreshShopUI();
+});
+
+document.getElementById('buy-bomb-btn').addEventListener('click', () => {
+  if (coins < BOMB_COST) return;
+  coins -= BOMB_COST;
+  bombCount++;
+  savePersist();
+  refreshShopUI();
+});
+
+document.getElementById('bomb-btn').addEventListener('click', useBomb);
 
 // ── Start / restart ────────────────────────────────────────
 document.getElementById('start-btn').addEventListener('click', startGame);
@@ -1578,7 +1773,7 @@ function startGame() {
 
   weaponTier = 0;
   vehicles.forEach(v => scene.remove(v.group)); vehicles.length=0;
-  crowdSize=CFG.startCrowd;
+  crowdSize = SOLDIER_UPGRADES[startSoldiersLevel].soldiers;
   level=1; levelParams=getLevelParams(1);
   speed=levelParams.worldSpeed;
   wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
@@ -1595,26 +1790,34 @@ function startGame() {
   spawnEnemy(-90, levelParams.enemyHP, levelParams.enemyCount);
   wavesSpawnedInLevel = 1;
 
-  ['start-screen','gameover-screen','victory-screen'].forEach(id =>
+  ['start-screen','gameover-screen','victory-screen','shop-screen'].forEach(id =>
     document.getElementById(id).classList.add('hidden'));
 
   state='playing';
+  updateBombBtn();
+  updateCoinDisplay(false);
 }
 
 function triggerGameOver() {
   if (state==='dead') return;
   state='dead';
+  updateBombBtn();
   if (level > highScore) highScore = level;
   document.getElementById('final-score').textContent        = `Du kom til Level ${level}`;
   document.getElementById('high-score-display').textContent = `Rekord: Level ${highScore}`;
+  document.getElementById('gameover-coins').textContent     = `🪙 ${coins} mynter totalt`;
+  updateCoinDisplay(false);
   document.getElementById('gameover-screen').classList.remove('hidden');
 }
 
 function triggerVictory() {
   if (state==='victory') return;
   state='victory';
+  updateBombBtn();
   if (level > highScore) highScore = level;
-  document.getElementById('victory-score').textContent = `Level ${level} klart! Mengde: ${crowdSize}`;
+  document.getElementById('victory-score').textContent  = `Level ${level} klart! Mengde: ${crowdSize}`;
+  document.getElementById('victory-coins').textContent  = `🪙 ${coins} mynter totalt`;
+  updateCoinDisplay(false);
   document.getElementById('victory-screen').classList.remove('hidden');
 }
 

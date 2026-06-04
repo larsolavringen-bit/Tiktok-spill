@@ -30,8 +30,31 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 20px;
-  gap: 6px;
+  padding-top: 14px;
+  gap: 5px;
+}
+
+#hud-top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+#coin-display {
+  font-size: 16px;
+  font-weight: bold;
+  color: #ffd740;
+  text-shadow: 0 0 8px rgba(255,200,0,0.7);
+  letter-spacing: 0.5px;
+  background: rgba(0,0,0,0.35);
+  border-radius: 20px;
+  padding: 3px 12px;
+  border: 1.5px solid rgba(255,200,0,0.25);
+}
+
+#coin-count {
+  display: inline-block;
+  transition: transform 0.2s ease;
 }
 
 #level-label {
@@ -71,6 +94,36 @@ body {
   color: #fff;
   text-shadow: 0 1px 3px rgba(0,0,0,0.7);
   pointer-events: none;
+}
+
+/* Bomb button */
+#bomb-btn {
+  position: fixed;
+  bottom: 36px;
+  right: 28px;
+  z-index: 20;
+  background: linear-gradient(135deg, #ff6b00, #ff2200);
+  border-radius: 50%;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(255,80,0,0.6);
+  cursor: pointer;
+  border: 3px solid rgba(255,200,100,0.5);
+  gap: 1px;
+}
+
+#bomb-btn.hidden { display: none; }
+
+#bomb-icon { font-size: 28px; line-height: 1; }
+#bomb-count {
+  font-size: 13px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
 }
 
 /* Overlays */
@@ -114,8 +167,15 @@ body {
   text-align: center;
 }
 
+.start-btns {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
 .overlay button {
-  margin-top: 10px;
   padding: 18px 48px;
   font-size: 22px;
   font-weight: 900;
@@ -133,4 +193,105 @@ body {
 .overlay button:active {
   transform: scale(0.96);
   box-shadow: 0 4px 15px rgba(255,80,80,0.4);
+}
+
+.btn-shop {
+  background: linear-gradient(135deg, #ffa000, #ff6f00) !important;
+  box-shadow: 0 8px 30px rgba(255,160,0,0.5) !important;
+  font-size: 18px !important;
+  padding: 14px 40px !important;
+}
+
+.btn-back {
+  background: rgba(255,255,255,0.12) !important;
+  box-shadow: none !important;
+  font-size: 17px !important;
+  padding: 12px 36px !important;
+  margin-top: 8px;
+}
+
+/* Shop coin display */
+#shop-coins-display {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ffd740;
+  text-shadow: 0 0 12px rgba(255,200,0,0.8);
+  background: rgba(0,0,0,0.3);
+  border-radius: 30px;
+  padding: 6px 24px;
+  border: 2px solid rgba(255,200,0,0.3);
+}
+
+/* Shop items */
+.shop-items {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 360px;
+  padding: 0 20px;
+}
+
+.shop-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 14px 18px;
+  border: 1.5px solid rgba(255,255,255,0.12);
+  gap: 12px;
+}
+
+.shop-item-info {
+  flex: 1;
+}
+
+.shop-item-name {
+  font-size: 16px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.shop-item-desc {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 3px;
+  font-weight: normal;
+}
+
+.btn-buy {
+  background: linear-gradient(135deg, #ffd740, #ff9800) !important;
+  color: #1a1a00 !important;
+  font-size: 15px !important;
+  font-weight: 900 !important;
+  padding: 10px 18px !important;
+  border-radius: 30px !important;
+  box-shadow: 0 3px 12px rgba(255,160,0,0.4) !important;
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+.btn-buy:disabled {
+  background: rgba(255,255,255,0.15) !important;
+  color: rgba(255,255,255,0.35) !important;
+  box-shadow: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Coin animation */
+.coin-anim {
+  position: fixed;
+  font-size: 18px;
+  font-weight: 900;
+  color: #ffd740;
+  text-shadow: 0 0 6px rgba(255,200,0,0.9);
+  pointer-events: none;
+  z-index: 200;
+  transition: left 0.65s cubic-bezier(.2,.8,.4,1),
+              top 0.65s cubic-bezier(.2,.8,.4,1),
+              opacity 0.65s ease,
+              transform 0.65s ease;
+  transform: translate(-50%, -50%);
 }
