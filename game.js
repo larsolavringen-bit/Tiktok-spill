@@ -81,22 +81,13 @@ let bossSpawnedThisLevel = false;
 // Juster disse for å endre kurven.
 function getLevelParams(lvl) {
   const n   = lvl - 1;
-  const rnd = () => Math.random() * 0.3 - 0.15;
-
-  // Forventet crowd-størrelse ved dette levelet (spilleren samler ~8 soldater per level via porter)
-  const expectedCrowd = Math.min(5 + n * 8, 60);
-  // DPS per soldat med pistol = damage/interval = 2/0.14 ≈ 14
-  // Fienden bør kreve ~3-5 sek kamp med forventet crowd
-  const targetKillSec  = 3 + n * 0.3;          // litt lengre kamp per level
-  const enemyHPTarget  = Math.round(expectedCrowd * 14 * targetKillSec * (1 + rnd()));
-  const bossHPTarget   = Math.round(enemyHPTarget * (3 + n * 0.4) * (1 + rnd()));
-
+  const rnd = () => Math.random() * 0.25 - 0.125;
   return {
     worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
     wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
-    enemyHP:         Math.max(4, enemyHPTarget),
+    enemyHP:         Math.round((5 + n * 7)  * (1 + rnd())), // L1=5, L5=33, L10=68
     enemyCount:      Math.min(2 + Math.floor(n * 1.0), CFG.maxEnemyCount),
-    bossHP:          Math.max(30, bossHPTarget),
+    bossHP:          Math.round((18 + n * 20) * (1 + rnd())), // L1=18, L5=98, L10=198
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
