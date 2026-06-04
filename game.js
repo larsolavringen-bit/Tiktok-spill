@@ -116,7 +116,7 @@ function getLevelParams(lvl) {
     worldSpeed:      Math.min(11 + n * 0.7 + rnd(), 24),
     wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
     enemyHP:         Math.round((4 + n * 5)  * (1 + rnd())), // L1=4, L5=24, L10=49
-    enemyCount:      Math.min(1 + Math.floor(n * 0.8), CFG.maxEnemyCount),
+    enemyCount:      Math.min(4 + Math.floor(n * 1.5), CFG.maxEnemyCount),
     bossHP:          Math.round((15 + n * 16) * (1 + rnd())), // L1=15, L5=79, L10=159
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
