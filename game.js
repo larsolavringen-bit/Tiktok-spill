@@ -1822,35 +1822,44 @@ function closeShop() {
   document.getElementById('start-screen').classList.remove('hidden');
 }
 
+function makeDots(containerId, filled, total) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('span');
+    d.className = 'dot ' + (i < filled ? 'dot-filled' : 'dot-empty');
+    c.appendChild(d);
+  }
+}
+
 function refreshShopUI() {
   updateCoinDisplay(false);
 
-  // Soldat-oppgradering
-  const nextLevel = startSoldiersLevel + 1;
-  const buySolBtn = document.getElementById('buy-soldiers-btn');
-  const solDesc   = document.getElementById('soldiers-desc');
-  const solCost   = document.getElementById('soldiers-cost');
+  const maxSolLevel = SOLDIER_UPGRADES.length - 1;
+  const nextSolLvl  = startSoldiersLevel + 1;
+  const buySolBtn   = document.getElementById('buy-soldiers-btn');
 
-  if (nextLevel >= SOLDIER_UPGRADES.length) {
-    solDesc.textContent = `Maks! Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} soldater`;
+  makeDots('soldier-dots', startSoldiersLevel, maxSolLevel);
+
+  if (startSoldiersLevel >= maxSolLevel) {
     buySolBtn.disabled  = true;
-    buySolBtn.innerHTML = 'MAKS';
+    buySolBtn.innerHTML = 'MAX';
   } else {
-    const up = SOLDIER_UPGRADES[nextLevel];
-    solDesc.textContent = `Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} → ${up.soldiers} soldater`;
-    solCost.textContent = up.cost;
+    const up = SOLDIER_UPGRADES[nextSolLvl];
     buySolBtn.disabled  = coins < up.cost;
+    buySolBtn.innerHTML = `<span id="soldiers-cost-txt">${up.cost}</span>&nbsp;●`;
   }
 
-  // Bombe
   const buyBombBtn = document.getElementById('buy-bomb-btn');
-  document.getElementById('bomb-desc').textContent = `Du har ${bombCount} bombe${bombCount !== 1 ? 'r' : ''}`;
+  makeDots('bomb-dots', bombCount, MAX_BOMBS);
+
   if (bombCount >= MAX_BOMBS) {
     buyBombBtn.disabled  = true;
-    buyBombBtn.innerHTML = 'MAKS 80 🪙';
+    buyBombBtn.innerHTML = 'MAX';
   } else {
     buyBombBtn.disabled  = coins < BOMB_COST;
-    buyBombBtn.innerHTML = '80 🪙';
+    buyBombBtn.innerHTML = `80&nbsp;●`;
   }
 }
 
