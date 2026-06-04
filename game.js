@@ -1822,53 +1822,35 @@ function closeShop() {
   document.getElementById('start-screen').classList.remove('hidden');
 }
 
-function makeDots(containerId, filled, total) {
-  const c = document.getElementById(containerId);
-  if (!c) return;
-  c.innerHTML = '';
-  for (let i = 0; i < total; i++) {
-    const d = document.createElement('span');
-    d.className = 'dot ' + (i < filled ? 'dot-filled' : 'dot-empty');
-    c.appendChild(d);
-  }
-}
-
-function flashBuyBtn(btn) {
-  btn.classList.add('bought-flash');
-  setTimeout(() => btn.classList.remove('bought-flash'), 200);
-}
-
 function refreshShopUI() {
   updateCoinDisplay(false);
 
-  const maxSolLevel = SOLDIER_UPGRADES.length - 1; // 5
-  const nextSolLvl  = startSoldiersLevel + 1;
-  const buySolBtn   = document.getElementById('buy-soldiers-btn');
-  const solCostEl   = document.getElementById('soldiers-cost-txt');
+  // Soldat-oppgradering
+  const nextLevel = startSoldiersLevel + 1;
+  const buySolBtn = document.getElementById('buy-soldiers-btn');
+  const solDesc   = document.getElementById('soldiers-desc');
+  const solCost   = document.getElementById('soldiers-cost');
 
-  // Prikker: én per oppgraderingssteg (5 totalt), fyll opp til nåværende nivå
-  makeDots('soldier-dots', startSoldiersLevel, maxSolLevel);
-
-  if (startSoldiersLevel >= maxSolLevel) {
+  if (nextLevel >= SOLDIER_UPGRADES.length) {
+    solDesc.textContent = `Maks! Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} soldater`;
     buySolBtn.disabled  = true;
-    buySolBtn.innerHTML = 'MAX';
+    buySolBtn.innerHTML = 'MAKS';
   } else {
-    const up = SOLDIER_UPGRADES[nextSolLvl];
-    if (solCostEl) solCostEl.textContent = up.cost;
+    const up = SOLDIER_UPGRADES[nextLevel];
+    solDesc.textContent = `Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} → ${up.soldiers} soldater`;
+    solCost.textContent = up.cost;
     buySolBtn.disabled  = coins < up.cost;
-    buySolBtn.innerHTML = `<span id="soldiers-cost-txt">${up.cost}</span>&nbsp;●`;
   }
 
-  // Bomber – prikker 0-3
+  // Bombe
   const buyBombBtn = document.getElementById('buy-bomb-btn');
-  makeDots('bomb-dots', bombCount, MAX_BOMBS);
-
+  document.getElementById('bomb-desc').textContent = `Du har ${bombCount} bombe${bombCount !== 1 ? 'r' : ''}`;
   if (bombCount >= MAX_BOMBS) {
     buyBombBtn.disabled  = true;
-    buyBombBtn.innerHTML = 'MAX';
+    buyBombBtn.innerHTML = 'MAKS 80 🪙';
   } else {
     buyBombBtn.disabled  = coins < BOMB_COST;
-    buyBombBtn.innerHTML = `80&nbsp;●`;
+    buyBombBtn.innerHTML = '80 🪙';
   }
 }
 
@@ -1885,7 +1867,6 @@ document.getElementById('buy-soldiers-btn').addEventListener('click', () => {
   coins -= cost;
   startSoldiersLevel = nextLvl;
   savePersist();
-  flashBuyBtn(document.getElementById('buy-soldiers-btn'));
   refreshShopUI();
 });
 
@@ -1894,7 +1875,6 @@ document.getElementById('buy-bomb-btn').addEventListener('click', () => {
   coins -= BOMB_COST;
   bombCount++;
   savePersist();
-  flashBuyBtn(document.getElementById('buy-bomb-btn'));
   refreshShopUI();
 });
 
