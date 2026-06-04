@@ -1019,7 +1019,7 @@ function updateGates(dz) {
     const gate = gates[i];
     gate.group.position.z += dz;
 
-    if (!gate.passed && gate.group.position.z > -1 && gate.group.position.z < 5) {
+    if (!gate.passed && gate.group.position.z > 6 && gate.group.position.z < 12) {
       if (Math.abs(crowdX - gate.xPos) < 1.6) {
         gate.passed   = true;
         const before  = crowdSize;
