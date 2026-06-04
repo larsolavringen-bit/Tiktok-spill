@@ -49,7 +49,9 @@ let travelZ   = 0;
 let lastGateTravel  = 0;
 let lastEnemyTravel = 0;
 let lastPropTravel  = 0;
-let tanksThisLevel  = 0;  // maks 2 tanker per level
+let tanksThisLevel       = 0;  // maks 2 tanker per level
+let lastBulldozerTravel  = 0;
+let bulldozerThisLevel   = 0;
 let shootTimer      = 0;
 let enemyShootTimer = 0;
 let vehicleShootTimer = 0;
@@ -1217,6 +1219,111 @@ function refreshVehicleHP(v) {
   v.labelMesh.material.needsUpdate = true;
 }
 
+// ── Bulldoser ──────────────────────────────────────────────
+const bulldozers = [];
+const BULLDOZER_SPEED = 5.5;
+
+function createBulldozer() {
+  const g = new THREE.Group();
+  const mk = (geo, col, x=0,y=0,z=0,rx=0,ry=0,rz=0) => {
+    const m = new THREE.Mesh(geo, gMat(col));
+    m.position.set(x,y,z);
+    if(rx||ry||rz) m.rotation.set(rx,ry,rz);
+    m.castShadow = true;
+    return m;
+  };
+
+  // Belter på sidene
+  [-2.0, 2.0].forEach(sx => {
+    g.add(mk(new THREE.BoxGeometry(0.7, 0.7, 5.5), 0x1a1a1a, sx, 0.5, 0));
+    for (let bz = -2.4; bz <= 2.4; bz += 0.45) {
+      g.add(mk(new THREE.BoxGeometry(0.74, 0.13, 0.13), 0x2a2a2a, sx, 0.85, bz));
+    }
+    [-2.0, -0.7, 0.7, 2.0].forEach(wz => {
+      g.add(mk(new THREE.CylinderGeometry(0.38,0.38,0.72,10), 0x1a1a1a, sx, 0.38, wz, 0,0,Math.PI/2));
+    });
+  });
+
+  // Stort karosseri
+  g.add(mk(new THREE.BoxGeometry(3.8, 1.2, 5.0), 0x7b1111, 0, 1.2, 0));
+  // Kabine på toppen
+  g.add(mk(new THREE.BoxGeometry(2.4, 1.0, 2.2), 0x8b0000, 0, 2.2, 0.8));
+  // Vinduer (mørke)
+  g.add(mk(new THREE.BoxGeometry(2.1, 0.5, 0.08), 0x111133, 0, 2.4, -0.32));
+  // Side-panser
+  [-1.95, 1.95].forEach(sx => {
+    g.add(mk(new THREE.BoxGeometry(0.1, 0.9, 4.8), 0x6a0f0f, sx, 1.2, 0));
+  });
+
+  // Stor plog/skuffe foran (skrå, truende)
+  g.add(mk(new THREE.BoxGeometry(4.4, 1.8, 0.35), 0x5a0a0a, 0, 1.0, -2.9, -0.30,0,0));
+  // Plog-kant (metallisk)
+  g.add(mk(new THREE.BoxGeometry(4.45, 0.18, 0.22), 0x222222, 0, 0.18, -3.05));
+  // Plog-armer
+  [-1.5, 1.5].forEach(sx => {
+    g.add(mk(new THREE.BoxGeometry(0.22, 0.22, 1.0), 0x4a0808, sx, 0.9, -2.4));
+  });
+
+  // Eksos-rør
+  [0.8, 1.2].forEach(sx => {
+    g.add(mk(new THREE.CylinderGeometry(0.12,0.10,1.2,6), 0x111111, sx, 2.8, 0.4));
+  });
+
+  return g;
+}
+
+function spawnBulldozer(atZ, hp) {
+  const g = new THREE.Group();
+  g.add(createBulldozer());
+
+  const tex = hpTex(hp, hp);
+  const lbl = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.5, 0.75),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
+  );
+  lbl.position.y = 3.8;
+  g.add(lbl);
+
+  g.position.set(0, 0, atZ);
+  scene.add(g);
+  bulldozers.push({ group: g, hp, maxHp: hp, labelMesh: lbl, alive: true });
+  showFloatingText('⚠ BULLDOSER!', '#ff2200');
+}
+
+function refreshBulldozerHP(b) {
+  const newTex = hpTex(b.hp, b.maxHp);
+  b.labelMesh.material.map.dispose();
+  b.labelMesh.material.map = newTex;
+  b.labelMesh.material.needsUpdate = true;
+}
+
+function updateBulldozers(dz) {
+  for (let i = bulldozers.length-1; i >= 0; i--) {
+    const b = bulldozers[i];
+    // Bulldoseren STOPPER ALDRI – beveger seg alltid mot spilleren
+    b.group.position.z += dz + BULLDOZER_SPEED * _dt;
+
+    // Nådd hæren – kjør over soldater
+    if (b.group.position.z > 6) {
+      const kill = Math.max(3, Math.floor(crowdSize * 0.4));
+      crowdSize = Math.max(0, crowdSize - kill);
+      rebuildCrowd();
+      updateHUD();
+      showFloatingText(`-${kill} OVERKJØRT!`, '#ff2200');
+      spawnTankExplosion(b.group.position.x, 0.5, b.group.position.z);
+      scene.remove(b.group);
+      bulldozers.splice(i, 1);
+      if (crowdSize <= 0) { setTimeout(triggerGameOver, 500); return; }
+      continue;
+    }
+
+    if (b.group.position.z > 30) {
+      scene.remove(b.group);
+      bulldozers.splice(i, 1);
+    }
+  }
+}
+
 // ── Fiender ────────────────────────────────────────────────
 const enemies = []; // { group, hp, maxHp, labelMesh, alive }
 
@@ -1414,7 +1521,8 @@ function closestEnemy() {
 // Er vi i kamp? (fiende innen kampsonen)
 function inCombat() {
   return enemies.some(en => en.group.position.z > -10)
-      || vehicles.some(v => v.group.position.z > -20);
+      || vehicles.some(v => v.group.position.z > -20)
+      || bulldozers.some(b => b.group.position.z > -10);
 }
 
 function updateEnemies(dz) {
@@ -1595,6 +1703,30 @@ function updateBullets(dt) {
     }
 
     if (!hit) {
+      // Treff bulldoser?
+      for (const bd of bulldozers) {
+        if (!bd.alive) continue;
+        const bz = b.mesh.position.z - bd.group.position.z;
+        const bx = b.mesh.position.x - bd.group.position.x;
+        if (Math.abs(bz) < 3.5 && Math.abs(bx) < 2.5) {
+          bd.hp -= currentWeapon().damage;
+          hit = true;
+          refreshBulldozerHP(bd);
+          if (bd.hp <= 0) {
+            bd.alive = false;
+            const reward = Math.max(30, Math.round(bd.maxHp * 0.25));
+            spawnCoinAnim(bd.group.position.x, bd.group.position.z, reward);
+            spawnTankExplosion(bd.group.position.x, 0.5, bd.group.position.z);
+            scene.remove(bd.group);
+            const idx = bulldozers.indexOf(bd);
+            if (idx !== -1) bulldozers.splice(idx, 1);
+          }
+          break;
+        }
+      }
+    }
+
+    if (!hit) {
       // Treff KUN fremste fiende i kulens bane (høyest Z = nærmest spilleren)
       let frontEn = null;
       for (const en of enemies) {
@@ -1761,6 +1893,14 @@ function useBomb() {
       targetRef = v;
     }
   });
+  bulldozers.forEach(b => {
+    if (b.group.position.z > targetZ) {
+      targetZ = b.group.position.z;
+      targetX = b.group.position.x;
+      targetType = 'bulldozer';
+      targetRef = b;
+    }
+  });
   if (!targetType) return; // ingen mål
 
   bombCount--;
@@ -1802,6 +1942,20 @@ function useBomb() {
         upgradeWeapon();
       } else {
         refreshVehicleHP(v);
+      }
+    } else if (targetType === 'bulldozer') {
+      const bd = targetRef;
+      if (!bd.alive) return;
+      bd.hp -= BOMB_DAMAGE;
+      if (bd.hp <= 0) {
+        bd.alive = false;
+        const reward = Math.max(30, Math.round(bd.maxHp * 0.25));
+        spawnCoinAnim(bd.group.position.x, bd.group.position.z, reward);
+        scene.remove(bd.group);
+        const idx = bulldozers.indexOf(bd);
+        if (idx !== -1) bulldozers.splice(idx, 1);
+      } else {
+        refreshBulldozerHP(bd);
       }
     }
   });
@@ -1846,6 +2000,15 @@ function checkSpawns(dz) {
     }
   }
 
+  // Bulldoser spawner fra level 2, maks 1 per level, hvert 60. reise-enhet
+  const bdInterval = 60;
+  if (level >= 2 && bulldozerThisLevel < 1 && travelZ - lastBulldozerTravel >= bdInterval) {
+    lastBulldozerTravel += bdInterval;
+    bulldozerThisLevel++;
+    const bdhp = Math.round((150 + level * 60) * (0.85 + Math.random() * 0.3));
+    spawnBulldozer(-90, bdhp);
+  }
+
   // Kontinuerlig spawn av miljø-objekter på alle levels
   if (travelZ - lastPropTravel >= PROP_INTERVAL) {
     lastPropTravel += PROP_INTERVAL;
@@ -1861,6 +2024,8 @@ function nextLevel() {
   wavesSpawnedInLevel   = 0;
   bossSpawnedThisLevel  = false;
   tanksThisLevel        = 0;
+  bulldozerThisLevel    = 0;
+  lastBulldozerTravel   = travelZ;
   lastEnemyTravel       = travelZ;
   showFloatingText(`LEVEL ${level}`, '#ffee58');
   updateHUD();
@@ -1999,8 +2164,10 @@ function startGame() {
   level=1; levelParams=getLevelParams(1);
   speed=levelParams.worldSpeed;
   wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
+  bulldozers.forEach(b => scene.remove(b.group)); bulldozers.length=0;
+  bulldozerThisLevel=0;
   crowdX=0; targetX=0; travelZ=0;
-  lastGateTravel=0; lastEnemyTravel=0; lastPropTravel=0;
+  lastGateTravel=0; lastEnemyTravel=0; lastPropTravel=0; lastBulldozerTravel=0;
   shootTimer=0; enemyShootTimer=0; vehicleShootTimer=0;
 
   roadSegs.forEach((s,i) => s.position.set(0,0,-i*SEG));
@@ -2098,6 +2265,7 @@ function loop(ts) {
     updateProps(dz);
     updateGates(dz);
     updateVehicles(dz, combat);
+    updateBulldozers(combat ? 0 : dz);
     updateEnemies(combat ? 0 : dz);
     if (!combat) checkSpawns(dz);
 
@@ -2106,6 +2274,7 @@ function loop(ts) {
     const wInterval = currentWeapon().interval;
     const hasNearTarget = enemies.some(e => e.group.position.z > -20)
                        || vehicles.some(v => v.group.position.z > -20)
+                       || bulldozers.some(b => b.group.position.z > -40)
                        || gates.some(g => !g.passed && g.group.position.z > -40 && g.group.position.z < 12);
     if (shootTimer >= wInterval && hasNearTarget) {
       shootTimer = 0;
