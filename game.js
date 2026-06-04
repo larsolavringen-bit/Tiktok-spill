@@ -59,15 +59,16 @@ let startSoldiersLevel = 0; // oppgraderingsnivå for soldater
 let bombCount          = 0; // antall bomber spilleren har
 
 const SOLDIER_UPGRADES = [
-  { soldiers: 1,  cost: 0    }, // nivå 0 – standard
-  { soldiers: 3,  cost: 60   },
-  { soldiers: 6,  cost: 150  },
-  { soldiers: 10, cost: 300  },
-  { soldiers: 15, cost: 600  },
-  { soldiers: 20, cost: 1200 },
+  { soldiers: 1,  cost: 0   }, // nivå 0 – standard
+  { soldiers: 2,  cost: 40  },
+  { soldiers: 4,  cost: 100 },
+  { soldiers: 6,  cost: 180 },
+  { soldiers: 8,  cost: 280 },
+  { soldiers: 10, cost: 400 }, // nivå 5 – maks (10 soldater)
 ];
 const BOMB_COST   = 80;
 const BOMB_DAMAGE = 300;
+const MAX_BOMBS   = 3;
 
 function loadSave() {
   coins              = parseInt(localStorage.getItem('cr_coins')    || '0');
@@ -1705,31 +1706,54 @@ function closeShop() {
   document.getElementById('start-screen').classList.remove('hidden');
 }
 
+function makeDots(containerId, filled, total) {
+  const c = document.getElementById(containerId);
+  if (!c) return;
+  c.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const d = document.createElement('span');
+    d.className = 'dot ' + (i < filled ? 'dot-filled' : 'dot-empty');
+    c.appendChild(d);
+  }
+}
+
+function flashBuyBtn(btn) {
+  btn.classList.add('bought-flash');
+  setTimeout(() => btn.classList.remove('bought-flash'), 200);
+}
+
 function refreshShopUI() {
   updateCoinDisplay(false);
 
-  // Soldat-oppgradering
-  const nextLevel = startSoldiersLevel + 1;
-  const buySolBtn = document.getElementById('buy-soldiers-btn');
-  const solDesc   = document.getElementById('soldiers-desc');
-  const solCost   = document.getElementById('soldiers-cost');
+  const maxSolLevel = SOLDIER_UPGRADES.length - 1; // 5
+  const nextSolLvl  = startSoldiersLevel + 1;
+  const buySolBtn   = document.getElementById('buy-soldiers-btn');
+  const solCostEl   = document.getElementById('soldiers-cost-txt');
 
-  if (nextLevel >= SOLDIER_UPGRADES.length) {
-    // Maks nivå
-    solDesc.textContent = `Maks! Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} soldater`;
+  // Prikker: én per oppgraderingssteg (5 totalt), fyll opp til nåværende nivå
+  makeDots('soldier-dots', startSoldiersLevel, maxSolLevel);
+
+  if (startSoldiersLevel >= maxSolLevel) {
     buySolBtn.disabled  = true;
-    buySolBtn.innerHTML = 'MAKS';
+    buySolBtn.innerHTML = 'MAX';
   } else {
-    const up = SOLDIER_UPGRADES[nextLevel];
-    solDesc.textContent = `Starter med ${SOLDIER_UPGRADES[startSoldiersLevel].soldiers} → ${up.soldiers} soldater`;
-    solCost.textContent = up.cost;
+    const up = SOLDIER_UPGRADES[nextSolLvl];
+    if (solCostEl) solCostEl.textContent = up.cost;
     buySolBtn.disabled  = coins < up.cost;
+    buySolBtn.innerHTML = `<span id="soldiers-cost-txt">${up.cost}</span>&nbsp;●`;
   }
 
-  // Bombe
+  // Bomber – prikker 0-3
   const buyBombBtn = document.getElementById('buy-bomb-btn');
-  document.getElementById('bomb-desc').textContent = `Du har ${bombCount} bombe${bombCount !== 1 ? 'r' : ''}`;
-  buyBombBtn.disabled = coins < BOMB_COST;
+  makeDots('bomb-dots', bombCount, MAX_BOMBS);
+
+  if (bombCount >= MAX_BOMBS) {
+    buyBombBtn.disabled  = true;
+    buyBombBtn.innerHTML = 'MAX';
+  } else {
+    buyBombBtn.disabled  = coins < BOMB_COST;
+    buyBombBtn.innerHTML = `80&nbsp;●`;
+  }
 }
 
 document.getElementById('shop-open-btn').addEventListener('click', openShop);
@@ -1745,14 +1769,16 @@ document.getElementById('buy-soldiers-btn').addEventListener('click', () => {
   coins -= cost;
   startSoldiersLevel = nextLvl;
   savePersist();
+  flashBuyBtn(document.getElementById('buy-soldiers-btn'));
   refreshShopUI();
 });
 
 document.getElementById('buy-bomb-btn').addEventListener('click', () => {
-  if (coins < BOMB_COST) return;
+  if (coins < BOMB_COST || bombCount >= MAX_BOMBS) return;
   coins -= BOMB_COST;
   bombCount++;
   savePersist();
+  flashBuyBtn(document.getElementById('buy-bomb-btn'));
   refreshShopUI();
 });
 
