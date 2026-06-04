@@ -55,7 +55,7 @@ let enemyShootTimer = 0;
 
 // ── Våpen-tiers ────────────────────────────────────────────
 const WEAPON_TIERS = [
-  { damage:1, interval:0.18, color:0xffee58, name:'Pistol'       },
+  { damage:2, interval:0.14, color:0xffee58, name:'Pistol'       },
   { damage:2, interval:0.13, color:0xff9800, name:'Rifle'        },
   { damage:3, interval:0.09, color:0xff5722, name:'Maskingevær'  },
   { damage:5, interval:0.06, color:0xf44336, name:'Hagle'        },
@@ -85,8 +85,8 @@ function getLevelParams(lvl) {
   return {
     worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
     wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
-    enemyHP:         Math.round((8 + n * 6) * (1 + rnd())),
-    enemyCount:      Math.min(4 + Math.floor(n * 1.2), CFG.maxEnemyCount),
+    enemyHP:         Math.round((4 + n * 5) * (1 + rnd())),
+    enemyCount:      Math.min(2 + Math.floor(n * 1.0), CFG.maxEnemyCount),
     bossHP:          Math.round((60 + n * 40) * (1 + rnd())),
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
@@ -742,7 +742,7 @@ function rebuildCrowd() {
   crowdFigs.length = 0;
   const n    = Math.min(crowdSize, 80);
   const cols = Math.min(n, Math.ceil(Math.sqrt(n) * 1.3));
-  const spacingX = 1.3, spacingZ = 1.4;
+  const spacingX = 0.75, spacingZ = 0.85;
   for (let i = 0; i < n; i++) {
     const fig = createSoldier(0x1565c0);
     const col = i % cols;
