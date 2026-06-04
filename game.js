@@ -977,8 +977,8 @@ function opStr(op, val) {
 // ── Porter + Tank – tank på random X, porter ved siden ────
 function gateStartVal(variant) {
   // Begge porter starter røde (negative). variant 0 = stor, variant 1 = liten.
-  const base = Math.max(6, 6 + Math.floor(level * 2));
-  return variant === 0 ? -base : -Math.max(3, Math.floor(base * 0.5));
+  const base = Math.max(20, 20 + Math.floor(level * 5));
+  return variant === 0 ? -base : -Math.max(10, Math.floor(base * 0.5));
 }
 
 function refreshGateLabel(gate) {
