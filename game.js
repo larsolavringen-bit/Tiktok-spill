@@ -1300,7 +1300,7 @@ function getBulletMesh() {
 function spawnMuzzleFlash(wx, wy, wz) {
   const f = flashes[flashIdx % flashes.length];
   flashIdx++;
-  f.mesh.position.set(wx, wy, wz - 0.25);
+  f.mesh.position.set(wx, wy, wz - 0.1);
   f.mesh.visible  = true;
   f.mesh.scale.setScalar(0.6 + Math.random()*0.8);
   f.timer = 0.06; // sekunder den er synlig
@@ -1316,14 +1316,16 @@ function shootPlayerBullets() {
   const nearestZ = allTargets.reduce((a,b) => a.z > b.z ? a : b).z;
   if (nearestZ < -45) return;
 
-  // Skyt fra opptil 8 soldater
+  // Skyt fra opptil 8 soldater – fra geværmunningen i world-space
   const shooters = Math.min(crowdFigs.length, Math.min(crowdSize, 8));
   for (let i = 0; i < shooters; i++) {
     const fig = crowdFigs[i];
     if (!fig) continue;
-    const wx = crowdX + fig.position.x + 0.22;
-    const wy = 0.72;
-    const wz = fig.position.z - 0.20;
+    // Geværmunningen er ca (0.19, 0.35, -0.28) etter soldierScale=0.62
+    // crowdGroup.position.z = 8 må legges til for riktig world-Z
+    const wx = crowdX + fig.position.x + 0.19;
+    const wy = 0.35;
+    const wz = crowdGroup.position.z + fig.position.z - 0.28;
 
     // Hent fra pool
     const m = getBulletMesh();
@@ -1332,7 +1334,7 @@ function shootPlayerBullets() {
     m.visible = true;
     // Liten spredning horisontalt
     const spread = (Math.random()-0.5) * 0.04;
-    activePBullets.push({ mesh: m, vx: spread, life: 2.0 });
+    activePBullets.push({ mesh: m, vx: spread, life: 3.0 });
 
     // Munningsflamme
     spawnMuzzleFlash(wx, wy, wz);
