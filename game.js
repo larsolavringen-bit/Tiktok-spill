@@ -2104,8 +2104,8 @@ function loop(ts) {
     // Auto-skyting – skyt kun når det finnes mål innen rekkevidde
     shootTimer += dt;
     const wInterval = currentWeapon().interval;
-    const hasNearTarget = enemies.some(e => e.group.position.z > -40)
-                       || vehicles.some(v => v.group.position.z > -40)
+    const hasNearTarget = enemies.some(e => e.group.position.z > -20)
+                       || vehicles.some(v => v.group.position.z > -20)
                        || gates.some(g => !g.passed && g.group.position.z > -40 && g.group.position.z < 12);
     if (shootTimer >= wInterval && hasNearTarget) {
       shootTimer = 0;
