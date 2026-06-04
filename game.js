@@ -83,11 +83,11 @@ function getLevelParams(lvl) {
   const n   = lvl - 1;
   const rnd = () => Math.random() * 0.25 - 0.125;
   return {
-    worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
+    worldSpeed:      Math.min(11 + n * 0.7 + rnd(), 24),
     wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
-    enemyHP:         Math.round((5 + n * 7)  * (1 + rnd())), // L1=5, L5=33, L10=68
-    enemyCount:      Math.min(2 + Math.floor(n * 1.0), CFG.maxEnemyCount),
-    bossHP:          Math.round((18 + n * 20) * (1 + rnd())), // L1=18, L5=98, L10=198
+    enemyHP:         Math.round((4 + n * 5)  * (1 + rnd())), // L1=4, L5=24, L10=49
+    enemyCount:      Math.min(1 + Math.floor(n * 0.8), CFG.maxEnemyCount),
+    bossHP:          Math.round((15 + n * 16) * (1 + rnd())), // L1=15, L5=79, L10=159
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
@@ -1005,20 +1005,20 @@ function spawnVehicle(atZ, hp, xPos=0) {
   vehicles.push({ group:g, hp, maxHp:hp, labelMesh:lbl, alive:true });
 }
 
-function updateVehicles(dz) {
+function updateVehicles(dz, combat) {
   for (let i = vehicles.length-1; i >= 0; i--) {
     const v = vehicles[i];
 
-    if (dz > 0) {
+    if (!combat) {
       // Verden scroller – flytt tanken med
       v.group.position.z += dz;
-      // Kjør også fremover mot spilleren når ikke i kamp
+      // Kjør også fremover mot spilleren
       if (v.group.position.z > -80) {
         v.group.position.z += VEHICLE_SPEED * _dt;
       }
       if (v.group.position.z > -8) v.group.position.z = -8;
     }
-    // Under kamp (dz=0): gjør ingenting – tanken fryses helt
+    // Under kamp: tanken fryses HELT – ingenting endrer posisjonen
 
     // Roter turret sakte
     if (v.group.userData.turret) {
@@ -1663,7 +1663,7 @@ function loop(ts) {
     updateRoad(dz);
     updateProps(dz);
     updateGates(dz);
-    updateVehicles(combat ? 0 : dz);
+    updateVehicles(dz, combat);
     updateEnemies(combat ? 0 : dz);
     if (!combat) checkSpawns(dz);
 
