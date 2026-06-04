@@ -55,6 +55,7 @@ let bulldozerThisLevel   = 0;
 let shootTimer      = 0;
 let enemyShootTimer = 0;
 let vehicleShootTimer = 0;
+let bossShootTimer = 0;
 
 // ── Penge- og butikk-system ────────────────────────────────
 let coins              = 0;
@@ -116,12 +117,12 @@ function getLevelParams(lvl) {
   const rnd = () => Math.random() * 0.25 - 0.125;
   return {
     worldSpeed:      Math.min(11 + n * 0.7 + rnd(), 24),
-    wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
-    enemyHP:         Math.round((4 + n * 5)  * (1 + rnd())), // L1=4, L5=24, L10=49
-    enemyCount:      Math.min(4 + Math.floor(n * 1.5), CFG.maxEnemyCount),
-    bossHP:          Math.round((15 + n * 16) * (1 + rnd())), // L1=15, L5=79, L10=159
+    wavesBeforeBoss: Math.max(5, 5 + Math.floor(n * 0.8)),
+    enemyHP:         Math.round((10 + n * 8)  * (1 + rnd())),
+    enemyCount:      Math.min(6 + Math.floor(n * 2.5), CFG.maxEnemyCount),
+    bossHP:          Math.round((120 + n * 40) * (1 + rnd())),
     gateInterval:    Math.max(16, 28 - n * 0.5),
-    enemyInterval:   Math.max(22, 35 - n * 1.0),
+    enemyInterval:   Math.max(18, 32 - n * 1.0),
   };
 }
 
@@ -2000,9 +2001,10 @@ function checkSpawns(dz) {
     }
   }
 
-  // Bulldoser spawner fra level 2, maks 1 per level, hvert 60. reise-enhet
+  // Bulldoser spawner fra level 10, deretter hvert 5. level, maks 1 per level
   const bdInterval = 60;
-  if (level >= 2 && bulldozerThisLevel < 1 && travelZ - lastBulldozerTravel >= bdInterval) {
+  const bulldozerLevel = level >= 10 && (level - 10) % 5 === 0;
+  if (bulldozerLevel && bulldozerThisLevel < 1 && travelZ - lastBulldozerTravel >= bdInterval) {
     lastBulldozerTravel += bdInterval;
     bulldozerThisLevel++;
     const bdhp = Math.round((150 + level * 60) * (0.85 + Math.random() * 0.3));
@@ -2168,7 +2170,7 @@ function startGame() {
   bulldozerThisLevel=0;
   crowdX=0; targetX=0; travelZ=0;
   lastGateTravel=0; lastEnemyTravel=0; lastPropTravel=0; lastBulldozerTravel=0;
-  shootTimer=0; enemyShootTimer=0; vehicleShootTimer=0;
+  shootTimer=0; enemyShootTimer=0; vehicleShootTimer=0; bossShootTimer=0;
 
   roadSegs.forEach((s,i) => s.position.set(0,0,-i*SEG));
   rebuildCrowd();
@@ -2287,6 +2289,24 @@ function loop(ts) {
       if (enemyShootTimer >= CFG.enemyShootInterval) {
         enemyShootTimer = 0;
         shootEnemyBullets(front);
+      }
+    }
+
+    // Boss skyter tilbake (raskere og mer spredt enn vanlig fiende)
+    const boss = enemies.find(en => en.isBoss && en.group.position.z > -35);
+    if (boss) {
+      bossShootTimer += dt;
+      if (bossShootTimer >= CFG.enemyShootInterval * 0.6) {
+        bossShootTimer = 0;
+        // Boss skyter 4-6 kuler med bred spredning
+        const shots = 4 + Math.floor(boss.hp / boss.maxHp * 2);
+        for (let i = 0; i < shots; i++) {
+          const spread = (Math.random()-0.5) * 8.0;
+          const m = new THREE.Mesh(ebGeo, ebMat);
+          m.position.set(boss.group.position.x + spread, 0.8, boss.group.position.z);
+          scene.add(m);
+          activeEBullets.push({ mesh: m, vx: spread * 0.12, life: 3.0 });
+        }
       }
     }
 
