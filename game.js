@@ -96,7 +96,7 @@ const WEAPON_TIERS = [
 ];
 let weaponTier = 0;
 function currentWeapon() { return WEAPON_TIERS[Math.min(weaponTier, WEAPON_TIERS.length-1)]; }
-function playerDamage() { return playerDamage() * SOLDIER_TIERS[soldierTier].dmgMult; }
+function playerDamage() { return currentWeapon().damage * SOLDIER_TIERS[soldierTier].dmgMult; }
 function upgradeWeapon() {
   if (weaponTier < WEAPON_TIERS.length-1) weaponTier++;
   const w = currentWeapon();
