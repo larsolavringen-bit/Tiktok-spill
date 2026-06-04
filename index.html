@@ -38,44 +38,36 @@
 
   <!-- Shop screen -->
   <div id="shop-screen" class="overlay hidden">
-    <div class="shop-panel">
-      <div class="shop-title">BUTIKK</div>
+    <h1>BUTIKK</h1>
+    <div id="shop-coins-display">🪙 <span id="shop-coin-count">0</span></div>
 
-      <div class="shop-balance">
-        <span class="shop-balance-icon">●</span>
-        <span id="shop-coin-count">0</span>
+    <div class="shop-items">
+
+      <!-- Soldier upgrade -->
+      <div class="shop-item">
+        <div class="shop-item-info">
+          <div class="shop-item-name">FLERE SOLDATER</div>
+          <div class="shop-item-desc" id="soldiers-desc">Starter med 1 soldat</div>
+        </div>
+        <button id="buy-soldiers-btn" class="btn-buy">
+          <span id="soldiers-cost">60</span> 🪙
+        </button>
       </div>
 
-      <div class="shop-cards">
-
-        <!-- Soldier upgrade -->
-        <div class="shop-card">
-          <div class="shop-card-icon">🪖</div>
-          <div class="shop-card-body">
-            <div class="shop-card-title">Flere soldater</div>
-            <div id="soldier-dots" class="shop-dots"></div>
-          </div>
-          <button id="buy-soldiers-btn" class="btn-buy-card">
-            <span id="soldiers-cost-txt">40</span>&nbsp;●
-          </button>
+      <!-- Bomb -->
+      <div class="shop-item">
+        <div class="shop-item-info">
+          <div class="shop-item-name">💣 BOMBE</div>
+          <div class="shop-item-desc" id="bomb-desc">Du har 0 bomber</div>
         </div>
-
-        <!-- Bomb -->
-        <div class="shop-card">
-          <div class="shop-card-icon">💣</div>
-          <div class="shop-card-body">
-            <div class="shop-card-title">Bombe</div>
-            <div id="bomb-dots" class="shop-dots"></div>
-          </div>
-          <button id="buy-bomb-btn" class="btn-buy-card">
-            80&nbsp;●
-          </button>
-        </div>
-
+        <button id="buy-bomb-btn" class="btn-buy">
+          80 🪙
+        </button>
       </div>
 
-      <button id="shop-close-btn" class="btn-back-shop">TILBAKE</button>
     </div>
+
+    <button id="shop-close-btn" class="btn-back">TILBAKE</button>
   </div>
 
   <!-- Game Over screen -->
@@ -105,6 +97,6 @@
   <canvas id="game-canvas"></canvas>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="game.js?v=4"></script>
+  <script src="game.js?v=5"></script>
 </body>
 </html>
