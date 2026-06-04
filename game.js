@@ -48,6 +48,7 @@ let targetX   = 0;
 let travelZ   = 0;
 let lastGateTravel  = 0;
 let lastEnemyTravel = 0;
+let lastPropTravel  = 0;
 let tanksThisLevel  = 0;  // maks 2 tanker per level
 let shootTimer      = 0;
 let enemyShootTimer = 0;
@@ -86,7 +87,7 @@ function getLevelParams(lvl) {
     wavesBeforeBoss: Math.max(3, 3 + Math.floor(n * 0.8)),
     enemyHP:         Math.round((30 + n * 15) * (1 + rnd())),
     enemyCount:      Math.min(8 + Math.floor(n * 2.0), CFG.maxEnemyCount),
-    bossHP:          Math.round((200 + n * 100) * (1 + rnd())),
+    bossHP:          Math.round((500 + n * 200) * (1 + rnd())),
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
@@ -101,9 +102,9 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xd4b896);
 scene.fog        = new THREE.Fog(0xc8a97a, 30, 85);
 
-const camera = new THREE.PerspectiveCamera(62, 1, 0.1, 150);
-camera.position.set(0, 14, 22);
-camera.lookAt(0, 0, -6);
+const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 150);
+camera.position.set(0, 11, 18);
+camera.lookAt(0, 0, 2);
 
 function onResize() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -574,12 +575,18 @@ const crowdFigs = [];
 function rebuildCrowd() {
   while (crowdGroup.children.length) crowdGroup.remove(crowdGroup.children[0]);
   crowdFigs.length = 0;
-  const n = Math.min(crowdSize, 80);
+  const n    = Math.min(crowdSize, 80);
+  const cols = Math.min(n, Math.ceil(Math.sqrt(n) * 1.3));
+  const spacingX = 1.3, spacingZ = 1.4;
   for (let i = 0; i < n; i++) {
-    const fig   = createSoldier(0x1565c0);  // blå spiller-soldater
-    const angle = i * 2.39996;
-    const r     = i === 0 ? 0 : Math.sqrt(i / n) * CFG.crowdSpread;
-    fig.position.set(Math.cos(angle)*r, 0, Math.sin(angle)*r*0.5);
+    const fig = createSoldier(0x1565c0);
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    fig.position.set(
+      (col - (cols - 1) / 2) * spacingX,
+      0,
+      row * spacingZ
+    );
     crowdGroup.add(fig);
     crowdFigs.push(fig);
   }
@@ -695,7 +702,7 @@ function spawnGates(atZ) {
   // Tank spawner maks 2 ganger per level
   if (tanksThisLevel < 2) {
     tanksThisLevel++;
-    const vhp = Math.round((60 + level * 25) * (0.85 + Math.random()*0.3));
+    const vhp = Math.round((200 + level * 80) * (0.85 + Math.random()*0.3));
     spawnVehicle(atZ, vhp, tankX);
   }
 }
@@ -967,90 +974,47 @@ function createBoss() {
   return root;
 }
 
-// ── Spawn vanlige fiender – varierte formasjoner ────────────
-// formation: 'circle'|'line'|'spread'|'flank'|'wedge'|'swarm'
-function spawnEnemy(atZ, hp, count, formation) {
-  // Velg tilfeldig formasjon hvis ikke angitt
-  const formations = ['circle','line','spread','flank','wedge','swarm'];
-  const form = formation || formations[Math.floor(Math.random()*formations.length)];
+function spawnEnemy(atZ, hp, count) {
+  // Tett rutenett-formasjon
+  const cols = Math.min(count, Math.ceil(Math.sqrt(count) * 1.4));
+  const rows = Math.ceil(count / cols);
+  const spacingX = 1.6, spacingZ = 1.8;
 
-  // Beregn posisjoner basert på formasjon
-  function getPositions(n, f) {
-    const pos = [];
-    switch(f) {
-      case 'line':  // Rett linje på tvers av veien
-        for (let i=0;i<n;i++) pos.push([(i-(n-1)/2)*2.2, 0, 0]);
-        break;
-      case 'spread': // Bred vifte
-        for (let i=0;i<n;i++) {
-          const t = n>1?(i/(n-1)-0.5)*2:0;
-          pos.push([t*CFG.roadWidth*0.45, 0, -Math.abs(t)*2]);
-        }
-        break;
-      case 'flank': // To grupper på hver side
-        for (let i=0;i<n;i++) {
-          const side = i%2===0?-1:1;
-          const row  = Math.floor(i/2);
-          pos.push([side*(2.5+row*0.6), 0, -row*1.2]);
-        }
-        break;
-      case 'wedge': // V-formasjon peker mot spilleren
-        for (let i=0;i<n;i++) {
-          const row = Math.floor(i/2);
-          const side = i%2===0?-1:1;
-          pos.push([side*row*1.8, 0, row*2.0]);
-        }
-        break;
-      case 'swarm': // Mange, random spread, lav HP
-        for (let i=0;i<n;i++)
-          pos.push([(Math.random()-0.5)*CFG.roadWidth*0.7, 0, (Math.random()-0.5)*4]);
-        break;
-      default: // circle
-        for (let i=0;i<n;i++) {
-          const a = i*2.39996;
-          const r = i===0?0:Math.sqrt(i/n)*CFG.enemySpread;
-          pos.push([Math.cos(a)*r, 0, Math.sin(a)*r*0.5]);
-        }
-    }
-    return pos;
-  }
-
-  // Juster HP og antall etter formasjon
-  let adjustedHP = hp, adjustedCount = count;
-  if (form==='swarm')  { adjustedHP = Math.max(5, Math.round(hp*0.4)); adjustedCount = Math.round(count*1.8); }
-  if (form==='flank')  { adjustedCount = Math.max(4, Math.round(count*0.8)); }
-  if (form==='wedge')  { adjustedHP = Math.round(hp*1.3); adjustedCount = Math.max(3, Math.round(count*0.7)); }
-
-  // Tilfeldig X offset for gruppa (-3, 0 eller +3)
-  const groupOffsets = [-3, -1.5, 0, 1.5, 3];
-  const groupX = groupOffsets[Math.floor(Math.random()*groupOffsets.length)];
+  // Tilfeldig X-offset for hele gruppa
+  const offsets = [-3, -1.5, 0, 1.5, 3];
+  const groupX  = offsets[Math.floor(Math.random() * offsets.length)];
 
   const g = new THREE.Group();
-  const positions = getPositions(adjustedCount, form);
-  positions.forEach(([px,py,pz]) => {
+  for (let i = 0; i < count; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
     const fig = createSoldier(0xc62828);
-    fig.position.set(px, py, pz);
+    fig.position.set(
+      (col - (cols - 1) / 2) * spacingX,
+      0,
+      (row - (rows - 1) / 2) * spacingZ
+    );
     g.add(fig);
-  });
+  }
 
-  const tex = hpTex(adjustedHP, adjustedHP);
+  const tex = hpTex(hp, hp);
   const lbl = new THREE.Mesh(
     new THREE.PlaneGeometry(4.8, 0.82),
-    new THREE.MeshBasicMaterial({ map:tex, transparent:true, side:THREE.DoubleSide })
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide })
   );
-  lbl.position.y = 3.0;
+  lbl.position.y = 3.2;
   g.add(lbl);
 
   g.position.set(groupX, 0, atZ);
   scene.add(g);
-  enemies.push({ group:g, hp:adjustedHP, maxHp:adjustedHP, labelMesh:lbl, isBoss:false, alive:true });
+  enemies.push({ group: g, hp, maxHp: hp, labelMesh: lbl, isBoss: false, alive: true });
 }
 
-// Spawn to separate grupper på samme bølge (flankering)
+// Dobbel bølge: to separate grupper på flankene
 function spawnDoubleWave(atZ, hp, count) {
-  const half = Math.ceil(count/2);
-  spawnEnemy(atZ,        Math.round(hp*0.8), half, 'spread');
-  spawnEnemy(atZ - 8,   Math.round(hp*0.8), count-half, 'line');
+  const half = Math.ceil(count / 2);
+  spawnEnemy(atZ,      Math.round(hp * 0.9), half);
+  spawnEnemy(atZ - 10, Math.round(hp * 0.9), count - half);
 }
 
 // ── Spawn boss for gjeldende level ─────────────────────────
@@ -1115,8 +1079,8 @@ function updateEnemies(dz) {
       en.group.position.z += CFG.enemyWalkSpeed * _dt;
     }
 
-    // Ikke la fienden overskride crowd-posisjonen
-    if (en.group.position.z > -4) en.group.position.z = -4; // stopp rett foran crowd
+    // Stopp fienden på frontlinjen
+    if (en.group.position.z > -6) en.group.position.z = -6;
 
     if (en.group.position.z > 30) {
       scene.remove(en.group);
@@ -1374,6 +1338,12 @@ function checkSpawns(dz) {
       }
     }
   }
+
+  // Kontinuerlig spawn av miljø-objekter på alle levels
+  if (travelZ - lastPropTravel >= PROP_INTERVAL) {
+    lastPropTravel += PROP_INTERVAL;
+    spawnPropGroup(-90);
+  }
 }
 
 // Går opp ett level og starter det neste
@@ -1441,7 +1411,7 @@ function startGame() {
   speed=levelParams.worldSpeed;
   wavesSpawnedInLevel=0; bossSpawnedThisLevel=false; tanksThisLevel=0;
   crowdX=0; targetX=0; travelZ=0;
-  lastGateTravel=0; lastEnemyTravel=0;
+  lastGateTravel=0; lastEnemyTravel=0; lastPropTravel=0;
   shootTimer=0; enemyShootTimer=0;
 
   roadSegs.forEach((s,i) => s.position.set(0,0,-i*SEG));
@@ -1516,17 +1486,13 @@ function loop(ts) {
     const combat = inCombat();
     const front  = closestEnemy();
 
-    // Stopp ALT når fienden er rett på crowd – hold posisjonen til fienden er død
-    const enemyAtGate = front && front.group.position.z > -5;
-    const crowdStopped = enemyAtGate;
-    const dz = crowdStopped ? 0 : speed * dt;
+    // Verden stopper HELT under kamp – fienden går selv, ikke presset bakover
+    const dz = combat ? 0 : speed * dt;
 
     updateRoad(dz);
     updateProps(dz);
     updateGates(dz);
-    updateVehicles(dz);
-    // Sender dz=0 til updateEnemies under kamp slik at fienden ikke drifter med verden –
-    // fienden styrer sin egen marsj i updateEnemies via _dt
+    updateVehicles(combat ? 0 : dz);
     updateEnemies(combat ? 0 : dz);
     if (!combat) checkSpawns(dz);
 
