@@ -31,8 +31,8 @@ const CFG = {
   bulletSpeed:    26,
   shootInterval:  0.18,
   bulletDmg:       1,
-  enemyShootInterval: 0.5,
-  enemyBulletSpeed:   14,
+  enemyShootInterval: 1.2,
+  enemyBulletSpeed:   10,
   enemyWalkSpeed:      3,
   hardThreshold:      60,
 };
@@ -81,13 +81,22 @@ let bossSpawnedThisLevel = false;
 // Juster disse for å endre kurven.
 function getLevelParams(lvl) {
   const n   = lvl - 1;
-  const rnd = () => Math.random() * 0.4 - 0.2; // ±20% variasjon
+  const rnd = () => Math.random() * 0.3 - 0.15;
+
+  // Forventet crowd-størrelse ved dette levelet (spilleren samler ~8 soldater per level via porter)
+  const expectedCrowd = Math.min(5 + n * 8, 60);
+  // DPS per soldat med pistol = damage/interval = 2/0.14 ≈ 14
+  // Fienden bør kreve ~3-5 sek kamp med forventet crowd
+  const targetKillSec  = 3 + n * 0.3;          // litt lengre kamp per level
+  const enemyHPTarget  = Math.round(expectedCrowd * 14 * targetKillSec * (1 + rnd()));
+  const bossHPTarget   = Math.round(enemyHPTarget * (3 + n * 0.4) * (1 + rnd()));
+
   return {
     worldSpeed:      Math.min(14 + n * 1.2 + rnd(), 28),
     wavesBeforeBoss: Math.max(2, 2 + Math.floor(n * 0.5)),
-    enemyHP:         Math.round((4 + n * 5) * (1 + rnd())),
+    enemyHP:         Math.max(4, enemyHPTarget),
     enemyCount:      Math.min(2 + Math.floor(n * 1.0), CFG.maxEnemyCount),
-    bossHP:          Math.round((60 + n * 40) * (1 + rnd())),
+    bossHP:          Math.max(30, bossHPTarget),
     gateInterval:    Math.max(16, 28 - n * 0.5),
     enemyInterval:   Math.max(22, 35 - n * 1.0),
   };
@@ -797,8 +806,9 @@ function opStr(op, val) {
 
 // ── Porter + Tank – tank på random X, porter ved siden ────
 function gateStartVal(isGood) {
-  const base = Math.max(3, 3 + Math.floor(level * 1.5));
-  return isGood ? base : -base;
+  // Grønn port gir nok soldater til å gjøre en forskjell
+  const base = Math.max(5, 5 + Math.floor(level * 2.5));
+  return isGood ? base : -Math.max(2, Math.floor(base * 0.6));
 }
 
 function refreshGateLabel(gate) {
@@ -1344,9 +1354,9 @@ function shootPlayerBullets() {
 }
 
 function shootEnemyBullets(en) {
-  const numShooters = Math.min(5, Math.max(1, Math.ceil(en.hp / en.maxHp * 5)));
+  const numShooters = Math.min(3, Math.max(1, Math.ceil(en.hp / en.maxHp * 3)));
   for (let i = 0; i < numShooters; i++) {
-    const spread = (Math.random()-0.5) * 2.5;
+    const spread = (Math.random()-0.5) * 5.0; // bred spredning = lettere å unngå
     const m = new THREE.Mesh(ebGeo, ebMat);
     m.position.set(en.group.position.x + spread, 0.8, en.group.position.z);
     scene.add(m);
