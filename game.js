@@ -1744,7 +1744,7 @@ function useBomb() {
   if (bombDrop.active) return; // én bombe om gangen
 
   // Finn nærmeste mål: fiende eller tank (høyest Z = nærmest)
-  let targetX = 0, targetZ = -20, targetType = null, targetRef = null;
+  let targetX = 0, targetZ = -200, targetType = null, targetRef = null;
   enemies.forEach(en => {
     if (en.group.position.z > targetZ) {
       targetZ = en.group.position.z;
