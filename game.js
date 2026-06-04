@@ -430,6 +430,43 @@ function updateExplosion(dt) {
   }
 }
 
+// ── Bombe-drop animasjon ───────────────────────────────────
+const bombDropGeo = new THREE.SphereGeometry(0.32, 8, 6);
+const bombDropMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+const bombDropMesh = new THREE.Mesh(bombDropGeo, bombDropMat);
+bombDropMesh.visible = false;
+scene.add(bombDropMesh);
+
+const bombDrop = {
+  active: false,
+  x: 0, targetZ: 0,
+  y: 0, targetY: 0.5,
+  onLand: null,
+};
+
+function startBombDrop(tx, tz, onLand) {
+  bombDrop.active  = true;
+  bombDrop.x       = tx;
+  bombDrop.targetZ = tz;
+  bombDrop.y       = 22;
+  bombDrop.onLand  = onLand;
+  bombDropMesh.position.set(tx, 22, tz);
+  bombDropMesh.visible = true;
+  bombDropMesh.scale.setScalar(1);
+}
+
+function updateBombDrop(dt) {
+  if (!bombDrop.active) return;
+  bombDrop.y -= 28 * dt;
+  bombDropMesh.position.y = bombDrop.y;
+  bombDropMesh.rotation.x += dt * 6;
+  if (bombDrop.y <= bombDrop.targetY) {
+    bombDropMesh.visible = false;
+    bombDrop.active = false;
+    if (bombDrop.onLand) bombDrop.onLand();
+  }
+}
+
 // ── Geometrier ─────────────────────────────────────────────
 // Delte geometrier for alle soldater (lav poly, god ytelse)
 const GEO = {
@@ -1692,28 +1729,70 @@ function updateCoinDisplay(animate) {
 // ── Bombe ─────────────────────────────────────────────────
 function useBomb() {
   if (bombCount <= 0 || state !== 'playing') return;
+  if (bombDrop.active) return; // én bombe om gangen
+
+  // Finn nærmeste mål: fiende eller tank (høyest Z = nærmest)
+  let targetX = 0, targetZ = -20, targetType = null, targetRef = null;
+  enemies.forEach(en => {
+    if (en.group.position.z > targetZ) {
+      targetZ = en.group.position.z;
+      targetX = en.group.position.x;
+      targetType = 'enemy';
+      targetRef = en;
+    }
+  });
+  vehicles.forEach(v => {
+    if (v.group.position.z > targetZ) {
+      targetZ = v.group.position.z;
+      targetX = v.group.position.x;
+      targetType = 'vehicle';
+      targetRef = v;
+    }
+  });
+  if (!targetType) return; // ingen mål
+
   bombCount--;
   savePersist();
   updateBombBtn();
+  showFloatingText('💣', '#ff6600');
 
-  // Skade alle fiender på skjermen
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    const en = enemies[i];
-    en.hp -= BOMB_DAMAGE;
-    if (en.hp <= 0) {
-      en.alive = false;
-      awardCoins(en);
-      scene.remove(en.group);
-      enemies.splice(i, 1);
-      if (en.isBoss) setTimeout(nextLevel, 600);
-    } else {
-      refreshEnemyHP(en);
+  startBombDrop(targetX, targetZ, () => {
+    spawnTankExplosion(targetX, 0.5, targetZ);
+    showFloatingText('💥 BOMBE!', '#ff6600');
+
+    if (targetType === 'enemy') {
+      // Skad nærmeste fiende
+      const en = targetRef;
+      if (!en.alive) return;
+      en.hp -= BOMB_DAMAGE;
+      if (en.hp <= 0) {
+        en.alive = false;
+        awardCoins(en);
+        scene.remove(en.group);
+        const idx = enemies.indexOf(en);
+        if (idx !== -1) enemies.splice(idx, 1);
+        if (en.isBoss) setTimeout(nextLevel, 600);
+      } else {
+        refreshEnemyHP(en);
+      }
+      updateHUD();
+    } else if (targetType === 'vehicle') {
+      // Ødelegg tanken
+      const v = targetRef;
+      if (!v.alive) return;
+      v.hp -= BOMB_DAMAGE;
+      if (v.hp <= 0) {
+        v.alive = false;
+        awardVehicleCoins(v);
+        scene.remove(v.group);
+        const idx = vehicles.indexOf(v);
+        if (idx !== -1) vehicles.splice(idx, 1);
+        upgradeWeapon();
+      } else {
+        refreshVehicleHP(v);
+      }
     }
-  }
-  updateHUD();
-  triggerSkyExplosion();
-  triggerSkyExplosion();
-  showFloatingText('💥 BOMBE!', '#ff6600');
+  });
 }
 
 function updateBombBtn() {
@@ -2032,6 +2111,7 @@ function loop(ts) {
 
     updateBullets(dt);
     updateExplosion(dt);
+    updateBombDrop(dt);
     animateCrowd(dt, !combat);
     updateSky(dt);
 
